@@ -1,3 +1,4 @@
+pub mod grid;
 
 #[derive(Debug, Clone)]
 struct CodePoint {
@@ -48,24 +49,25 @@ impl Draw for QRSquare {
 }
 
 fn main() {
-    let mut qr = QREncode {
-        mode: 1,
-        msg_lenth: 32,
-        body: QRSquare {
-            square: vec![Tile; 441],
-            size: 21
-        }
-    };
-
-    let mut index = 0usize;
-    for x in 0..qr.body.size {
-        for y in 0..qr.body.size {
-            qr.body.set(index, x, y);
-            index += 1;
-        }
-    }
-
-    let code = qr.body.get(440);
-    qr.body.draw_fixed_point();
-    println!("y::{}, x::{}", code.y, code.x);
+    let grid = grid::grid::create_grid(21);
+    // let mut qr = QREncode {
+    //     mode: 1,
+    //     msg_lenth: 32,
+    //     body: QRSquare {
+    //         square: vec![Tile; 441],
+    //         size: 21
+    //     }
+    // };
+    //
+    // let mut index = 0usize;
+    // for x in 0..qr.body.size {
+    //     for y in 0..qr.body.size {
+    //         qr.body.set(index, x, y);
+    //         index += 1;
+    //     }
+    // }
+    //
+    // let code = qr.body.get(440);
+    // qr.body.draw_fixed_point();
+    // println!("y::{}, x::{}", code.y, code.x);
 }
