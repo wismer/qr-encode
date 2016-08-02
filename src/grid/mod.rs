@@ -46,6 +46,12 @@ pub mod grid {
         QRGrid::new(size)
     }
 
+    pub fn draw_fixed_point(qr: &mut QRGrid, start_point: &[u8], end_point: &[u8]) {
+        // start_point: [3, 3], end_point: [0, 0]
+        let tile_row = qr.grid.rows[start_point[0]];
+        let mut start_point: Tile = tile_row.tiles[start_point[1]];
+    }
+
 
     // impl QRSquare {
     //     fn new(size: usize) -> QRSquare {
