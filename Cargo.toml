@@ -1,0 +1,6 @@
+[package]
+name = "qr-encode"
+version = "0.1.0"
+authors = ["Matt Long <matthewhl@gmail.com>"]
+
+[dependencies]
