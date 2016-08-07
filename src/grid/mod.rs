@@ -1,3 +1,4 @@
+pub mod message;
 pub mod grid {
     #[derive(Copy, Clone)]
     struct Tile(bool);
@@ -47,23 +48,7 @@ pub mod grid {
     }
 
     pub fn draw_fixed_point(qr: &mut QRGrid, start_point: &[u8], end_point: &[u8]) {
-        // start_point: [3, 3], end_point: [0, 0]
-        let tile_row = qr.grid.rows[start_point[0]];
+        let mut tile_row = qr.grid.rows[start_point[0]];
         let mut start_point: Tile = tile_row.tiles[start_point[1]];
     }
-
-
-    // impl QRSquare {
-    //     fn new(size: usize) -> QRSquare {
-    //         QRSquare { size: size, tiles: vec![Tile::new(); size] }
-    //     }
-    //
-    //     fn get(&self, x: usize, y: usize) -> &Tile {
-    //         &self.tiles[(x * self.size) + y]
-    //     }
-    //
-    //     fn set(&mut self, x: usize, y: usize, is_bit: bool) {
-    //         self.tiles[(x * self.size) + y] = Tile(is_bit);
-    //     }
-    // }
 }
