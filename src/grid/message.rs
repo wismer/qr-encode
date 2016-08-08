@@ -33,7 +33,7 @@ pub mod message {
         fn mask_format_info(&self, mask: u16) -> Option<u16> {
             let gen = 0b10100110111;
             for n in 0..5 {
-                if mask & (1 << (n + 10)) == 0 {
+                if mask & (1 << (n + 10)) == 1 {
                     mask ^= gen << n;
                 }
             }
