@@ -61,9 +61,8 @@ pub mod message {
 
     struct Generator;
     struct ErrorCorrectChunk; // this needs to be fleshed out later
-
     struct MessageChunk {
-        bits: u16,
+        bits: [Bit; 8],
         pattern: BitPattern
     }
 
