@@ -107,7 +107,7 @@ impl FormatInfo {
         FormatInfo { mask: mask, level: level, error_correction: None }
     }
 
-    fn apply(&mut self) {
+    pub fn encode_formatting(&mut self) {
         let error_level: u8 = match self.level {
             ErrorCorrectionLevel::Low => 3,
             ErrorCorrectionLevel::Medium => 2,
@@ -119,13 +119,4 @@ impl FormatInfo {
         let generator = Generator;
         self.error_correction = generator.mask_format_info(format_info as u16);
     }
-}
-
-fn make_format() {
-    let mut format_info: FormatInfo = FormatInfo {
-        level: ErrorCorrectionLevel::Low,
-        mask: 0b0100,
-        error_correction: None
-    };
-    format_info.apply();
 }

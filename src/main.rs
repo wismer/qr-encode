@@ -4,5 +4,6 @@ use grid::grid::{QRGrid};
 
 fn main() {
     let mut qr = QRGrid::new(21, 2, ErrorCorrectionLevel::Low);
-    qr.show();
+    let message = String::from("www.wikipedia.org");
+    qr.set_fixed();
 }
