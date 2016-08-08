@@ -1,4 +1,11 @@
 pub mod message {
+    enum MessageChunks {
+        Format(FormatInfo),
+        ErrorCorrection(ErrorCorrectChunk),
+        Message(MessageChunk),
+        None
+    }
+
     enum ErrorCorrectionLevel {
         Low,
         Medium,
@@ -6,7 +13,59 @@ pub mod message {
         Quartile
     }
 
+    enum MaskPatterns {
+        Vertical,
+        Diagonal,
+        Checkered,
+        Horizontal,
+        Amorphous,
+        Other // hoo boy this is hard stuff. TODO.
+    }
+
+    /*
+        ex:
+            let start_point = 0;
+            let mut tiles: Tiles = &mut self.tiles;
+            let mut i = 0usize;
+            match self.pattern {
+                MaskPatterns::Vertical => {
+                    while i < 8 {
+                        tiles.set(|&tile|
+                            if tile.x % i == 0 {
+                                tile.bit ^= 1;
+                            }
+                        )
+                    }
+                },
+                etc... TODO
+            }
+
+    */
+
+    enum BitPattern {
+        Up,
+        Down,
+        Left,
+        Right
+    }
+
+    /*
+        ex: ( I think )
+            let pattern: [u8; 8] = match pattern_enum_field {
+                BitPattern::Up => [1, 0, 2, 3, 4, 5, 6, 7],
+                BitPattern::Down => [6, 7, 5, 4, 3, 2, 0, 1],
+                BitPattern::Left => [5, 4, 3, 2, 7, 6, 1, 0],
+                BitPattern::Right => [7, 6, 1, 0, 5, 4, 3, 2]
+            }
+    */
+
     struct Generator;
+    struct ErrorCorrectChunk; // this needs to be fleshed out later
+
+    struct MessageChunk {
+        bits: u16,
+        pattern: BitPattern
+    }
 
     struct FormatInfo {
         level: ErrorCorrectionLevel,
