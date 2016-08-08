@@ -6,13 +6,7 @@ pub mod message {
         Quartile
     }
 
-    enum ErrorCorrectionBody<T> {
-        Some(T),
-        None
-    }
-
     struct Generator;
-    struct ErrorCorrection(u8);
 
     struct FormatInfo {
         level: ErrorCorrectionLevel,
@@ -73,15 +67,6 @@ pub mod message {
             mask: 0b0100,
             error_correction: None
         };
-    }
-
-    enum EncodeTypes {
-        Error { len: u8, body: u32 },
-        Message { len: u8, body: u32 },
-
-    }
-
-    struct Message {
-
+        format_info.apply();
     }
 }
