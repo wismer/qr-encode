@@ -18,16 +18,6 @@ pub struct Bit {
     section: QRSection
 }
 
-impl Bit {
-    fn format(&mut self, size: usize) {
-        match self.section {
-            QRSection::Fixed => {
-
-            }
-        }
-    }
-}
-
 pub struct QRGrid {
     size: usize,
     bits: Vec<Bit>,
@@ -41,8 +31,7 @@ fn is_fixed_area(x: usize, y: usize, size: usize) -> bool {
 impl QRGrid {
     pub fn new(size: usize, mask: u8, error_correction: ErrorCorrectionLevel) -> QRGrid {
         let mut bits: Vec<Bit> = vec![];
-        // fixed zones: 7x7 blocks for 21x21 (for now)
-        //
+
         for i in 0..(size * size) {
             let row = i / size;
             let col = i % size;
@@ -57,10 +46,6 @@ impl QRGrid {
 
         let format_info = FormatInfo::new(mask, error_correction);
         QRGrid { size: size, bits: bits, format_info: format_info }
-    }
-
-    pub fn fill_fixed(&mut self) {
-        
     }
 
     pub fn show(&self) {
