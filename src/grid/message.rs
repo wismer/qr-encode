@@ -119,4 +119,17 @@ impl FormatInfo {
         let generator = Generator;
         self.error_correction = generator.mask_format_info(format_info as u16);
     }
+
+    pub fn mask_func_factory(&self) -> Box<Fn(usize, usize) -> bool> {
+        match self.mask {
+            1 => Box::new(move |x, y| ((x / 2) + (y / 3)) % 2 == 0),
+            2 => Box::new(move |x, y| ((x * y) % 3 + x + y) % 2 == 0),
+            3 => Box::new(move |x, y| ((x * y) % 3 + x * y) % 2 == 0),
+            4 => Box::new(move |x, y| x % 2 == 0),
+            5 => Box::new(move |x, y| (x + y) % 2 == 0),
+            6 => Box::new(move |x, y| (x + y) % 3 == 0),
+            7 => Box::new(move |x, y| x % 3 == 0),
+            _ => Box::new(move |x, y| (x * y) % 2 + (x * y) % 3 == 0)
+        }
+    }
 }
