@@ -10,6 +10,13 @@ enum QRSection {
     None
 }
 
+enum Direction {
+    Up,
+    Down,
+    Left,
+    Right
+}
+
 pub struct Bit {
     x: usize,
     y: usize,
@@ -18,11 +25,14 @@ pub struct Bit {
     section: QRSection
 }
 
+struct Chunk(u8, u8);
+
 pub struct QRGrid {
     size: usize,
     bits: Vec<Bit>,
     format_info: FormatInfo
 }
+
 
 fn is_fixed_area(x: usize, y: usize, size: usize) -> bool {
     x <= 7 && (y <= 7 || (size - y) <= 7) || y <= 7 && (size - x) <= 7
@@ -49,13 +59,34 @@ impl QRGrid {
     }
 
     pub fn show(&self) {
+        let f = self.format_info.mask_func_factory();
         for n in &self.bits {
             println!("{} {}", n.x, n.y);
+
+            let v = f(n.x, n.y);
+            println!("{}", v);
         }
     }
 
-    pub fn encode(&mut self, message: String) {
-        let bytes = message.into_bytes();
+    fn set_chunk(&mut self) -> Direction {
+        Direction::Right
+    }
 
+    pub fn encode(&mut self, message: String, mode: u8) {
+        let mut bits = &mut self.bits;
+        let mut payload: Vec<Chunk> = vec![Chunk(mode, 4)];
+        let msg_length = message.len();
+        payload.push(Chunk(msg_length as u8, 8));
+
+        for byte in message.into_bytes() {
+            payload.push(Chunk(byte, 8));
+        }
+
+        let mut start_x = self.size - 1;
+        let mut start_y = self.size - 1;
+
+        for b in payload {
+            // I think I need to stick in a direction enum for Chunk
+        }
     }
 }

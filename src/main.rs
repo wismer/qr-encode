@@ -5,4 +5,5 @@ use grid::grid::{QRGrid};
 fn main() {
     let mut qr = QRGrid::new(21, 2, ErrorCorrectionLevel::Low);
     let message = String::from("www.wikipedia.org");
+    qr.encode(message, 0b0100)
 }

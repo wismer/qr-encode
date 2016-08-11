@@ -1,12 +1,5 @@
 use grid::grid::Bit;
 
-enum MessageChunks {
-    Format(FormatInfo),
-    ErrorCorrection(ErrorCorrectChunk),
-    Message(MessageChunk),
-    None
-}
-
 pub enum ErrorCorrectionLevel {
     Low,
     Medium,
@@ -14,14 +7,6 @@ pub enum ErrorCorrectionLevel {
     Quartile
 }
 
-enum MaskPatterns {
-    Vertical,
-    Diagonal,
-    Checkered,
-    Horizontal,
-    Amorphous,
-    Other // hoo boy this is hard stuff. TODO.
-}
 
 /*
     ex:
@@ -43,13 +28,6 @@ enum MaskPatterns {
 
 */
 
-enum BitPattern {
-    Up,
-    Down,
-    Left,
-    Right
-}
-
 /*
     ex: ( I think )
         let pattern: [u8; 8] = match pattern_enum_field {
@@ -63,8 +41,7 @@ enum BitPattern {
 struct Generator;
 struct ErrorCorrectChunk; // this needs to be fleshed out later
 struct MessageChunk {
-    bits: [Bit; 8],
-    pattern: BitPattern
+    bits: [Bit; 8]
 }
 
 pub struct FormatInfo {
