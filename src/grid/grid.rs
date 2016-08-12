@@ -11,11 +11,15 @@ enum QRSection {
     None
 }
 
-enum Direction {
-    Up,
-    Down,
-    Left,
-    Right
+struct BitPath {
+    path: Vec<(usize, usize)>
+}
+
+enum Orientation {
+    RotateUpward([usize; 8]),
+    RotateDownward([usize; 8]),
+    Downward([usize; 8]),
+    Upward([usize; 8])
 }
 
 pub struct Bit {
@@ -34,6 +38,15 @@ pub struct QRGrid {
     format_info: FormatInfo
 }
 
+
+impl Bit {
+    fn is_valid(&self) -> bool {
+        match self.section {
+            QRSection::None => true,
+            _ => false
+        }
+    }
+}
 
 fn is_fixed_area(x: usize, y: usize, size: usize) -> bool {
     x <= 7 && (y <= 7 || (size - y) <= 7) || y <= 7 && (size - x) <= 7
@@ -103,6 +116,37 @@ impl QRGrid {
 
         for b in payload {
             // I think I need to stick in a direction enum for Chunk
+        }
+    }
+
+    fn is_empty_bit(&self, x: usize, y: usize) -> bool {
+        if x < 0 || y < 0 || x >= self.size || y >= self.size {
+            return false
+        }
+
+        let bit = &self.bits[x * (self.size - 1) + y];
+        bit.is_valid()
+    }
+
+    fn determine_block_orientation(&self, x: usize, y: usize) -> Orientation {
+        if self.is_empty_bit(x - 1, y) && self.is_empty_bit(x - 2, y) {
+
+        }
+    }
+
+    fn get_valid_path(&self, x: usize, y: usize, block_size: usize) -> Option<BitPath> {
+        let bit: Bit;
+        let mut valid_path: Vec<(usize, usize)> = vec![];
+        for (a, b) in path {
+            if self.is_empty_bit(x, y) {
+                valid_path.push((x, y));
+            }
+        }
+
+        let length = valid_path.len();
+        match length {
+            4 | 8 => Some(BitPath { path: valid_path }),
+            _ => None
         }
     }
 }
