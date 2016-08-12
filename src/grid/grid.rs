@@ -2,6 +2,7 @@ use grid::message::{FormatInfo, ErrorCorrectionLevel};
 
 enum QRSection {
     Fixed,
+    FixedBridge,
     Format,
     Error,
     Message,
@@ -38,6 +39,21 @@ fn is_fixed_area(x: usize, y: usize, size: usize) -> bool {
     x <= 7 && (y <= 7 || (size - y) <= 7) || y <= 7 && (size - x) <= 7
 }
 
+fn is_bridge_area(x: usize, y: usize) -> bool {
+    x == 6 && (y >= 8 && y <= 12) || y == 6 && (x >= 8 && x <= 12)
+}
+
+fn is_format_area(x: usize, y: usize) -> bool {
+    if x == 8 {
+        y >= 8 && y <= 12 || y >= 13 && y <= 20
+    } else if y == 8 {
+        x >= 8 && x <= 12 || x >= 13 && y <= 20
+    } else {
+        false
+    }
+}
+
+
 impl QRGrid {
     pub fn new(size: usize, mask: u8, error_correction: ErrorCorrectionLevel) -> QRGrid {
         let mut bits: Vec<Bit> = vec![];
@@ -45,9 +61,13 @@ impl QRGrid {
         for i in 0..(size * size) {
             let row = i / size;
             let col = i % size;
-            let mut bit: Bit;
+            let bit: Bit;
             if is_fixed_area(row, col, size) {
                 bit = Bit { x: row, y: col, val: false, section: QRSection::Fixed };
+            } else if is_bridge_area(row, col) {
+                bit = Bit { x: row, y: col, val: false, section: QRSection::FixedBridge };
+            } else if is_format_area(row, col) {
+                bit = Bit { x: row, y: col, val: false, section: QRSection::Format };
             } else {
                 bit = Bit { x: row, y: col, val: false, section: QRSection::None };
             }
@@ -66,10 +86,6 @@ impl QRGrid {
             let v = f(n.x, n.y);
             println!("{}", v);
         }
-    }
-
-    fn set_chunk(&mut self) -> Direction {
-        Direction::Right
     }
 
     pub fn encode(&mut self, message: String, mode: u8) {

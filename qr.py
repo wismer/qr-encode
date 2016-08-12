@@ -143,22 +143,10 @@ class QR(object):
         self.bits = bit_rows
 
     def is_bit(self, x, y):
-        if x < 0 or y < 0:
+        if x < 0 or y < 0 or x >= self.size or y >= self.size:
             return False
-        try:
-            bit = self.bits[x][y]
-        except IndexError:
-            return False
-
+        bit = self.bits[x][y]
         return bit.is_valid()
-
-    def distance_to_edge(self, x, y, block_size=4):
-        pass
-        # i = 0
-        # distance_up, distance_down, distance_left = 0, 0, 0
-        # while i < block_size + 1:
-        #     if self.is_bit(x + i, y):
-        #         i += 1
 
     def is_path_valid(self, x, y, path):
         return all([self.is_bit(x + a, y + b) for a, b in path])
@@ -174,15 +162,13 @@ class QR(object):
                 x, y = x, y + 1
             elif self.is_bit(x, y - 1):
                 x, y = x, y - 1
-
         for path in [UPWARD, TURN_DOWNWARD, DOWNWARD, TURN_UPWARD]:
             if self.is_path_valid(x, y, path[0:length]):
+                for a, b in path[0:length]:
+                    bit = self.bits[x + a][y + b]
+                    bit.active = True
+                bit.is_fixed = True
                 break
-
-        for a, b in path[0:length]:
-            bit = self.bits[x + a][y + b]
-            bit.active = True
-        bit.is_fixed = True
 
         if self.is_bit(bit.x - 1, bit.y + 1):
             return bit.x - 1, bit.y + 1
@@ -201,24 +187,11 @@ class QR(object):
 
         print(qr)
 
-    def check_path(self, x, y, block_size=8):
-        i = block_size // 2
-        path = []
-        while i > 0:
-            if not self.is_bit(x - i, y):
-                # flush saved path and break from loop
-                path = []
-                i = -4
-                break
-            else:
-                # determine y axis location
-                z = 1 if i % 2 == 0 else 0
-                path.append((x - i, y - z))
-            i -= 1
 
 qr = QR()
 x, y = 20, 20
 for block in SAMPLE_BLOCKS:
     if x and y:
         x, y = qr.draw_pivots_from(x, y, block_size=block)
+
     qr.show()
