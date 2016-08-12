@@ -1,46 +1,79 @@
 from time import sleep
 
-def shift_coord(first, second, index, vertical=True):
-    if vertical:
-        if index % 2 == 0:
-            second -= 1
-        else:
-            pass
+# rules:
+# if there are free cells equal or greater than the current block size,
+# then the path is legal. What is expected the cells are placed, return
+# the first cell position
+# if the cells are less than the current block size, but are equal to half,
 
-
-def generate_path_up(x, y):
-    path = []
-    for i in range(0, 8):
-        path.append((x, y))
-        if i % 2 == 0:
-            y -= 1
-        else:
-            x -= 1
-            y += 1
-
-    return path
-
-def generate_path_left(x, y):
-    path = []
-    for i in range(0, 8):
-        path.append((x, y))
-        if i % 2 == 0:
-            x -= 1
-        else:
-            y -= 1
-            x += 1
-
-    return path
-
-
-def generate_path(x, y, length=8, direction=None):
-    x_bound, y_bound = direction or (-4, 0)
-        
-
-STEPS = [
-    (4, 1, 'x'),
-    (2, 1, 'x'),
+SAMPLE_BLOCKS = [4, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 4]
+UPWARD = [
+    (0, 0),
+    (0, -1),
+    (-1, 0),
+    (-1, -1),
+    (-2, 0),
+    (-2, -1),
+    (-3, 0),
+    (-3, -1)
 ]
+DOWNWARD = [
+    (0, 0),
+    (0, -1),
+    (1, 0),
+    (1, -1),
+    (2, 0),
+    (2, -1),
+    (3, 0),
+    (3, -1)
+]
+
+TURN_UPWARD = [
+    (0, 0),
+    (0, -1),
+    (1, 0),
+    (1, -1),
+    (1, -2),
+    (1, -3),
+    (0, -2),
+    (0, -3)
+]
+
+TURN_DOWNWARD = [
+    (0, 0),
+    (0, -1),
+    (-1, 0),
+    (-1, -1),
+    (-1, -2),
+    (-1, -3),
+    (0, -2),
+    (0, -3)
+]
+
+LOOKUP_PATHS = [
+    {
+        'paths': UPWARD,
+        'adjust': (-1, 0)
+    },
+    {
+        'paths': DOWNWARD,
+        'adjust': (1, 0)
+    },
+    {
+        'paths': [
+            (0, 0),
+            (-1, 0),
+            (0, -1),
+            (-1, -1),
+            (0, -2),
+            (-1, -2),
+            (-1, -3),
+            (0, -3)
+        ],
+        'adjust': (1, 0)
+    },
+]
+
 
 class Bit(object):
     def __init__(self, x=None, y=None, active=False, is_fixed=False, is_format=False, is_bridge=False, initial=False):
@@ -66,9 +99,14 @@ class Bit(object):
             self.is_format = False
 
     def is_not_legal(self):
-        if self.active or self.is_format or self.is_fixed or self.is_bridge:
+        if self.active or self.is_format or self.is_fixed:
             return True
         return False
+
+    def is_valid(self):
+        if self.active or self.is_format or self.is_fixed:
+            return False
+        return True
 
     def __str__(self):
         padding = " "
@@ -104,78 +142,54 @@ class QR(object):
 
         self.bits = bit_rows
 
-    def get_direction(self, x, y):
-        directions = []
-        for mod_x, mod_y, step, steps in [(-1, 0, -1, 4), (-2, 0), (4, 0), (2, 0), (0, -4), (0, -2)]:
-            for i in range(0, step , step)
-            try:
-                bit = self.bits[x + mod_x][y + mod_y]
-            except IndexError:
-                bit = False
-
-            if bit and not bit.is_not_legal():
-                directions.append((x, mod_x, y, mod_y))
-
-        return directions
-
-    def gen_path(self, x, y, direction='up', block_length=4):
-        path = []
-        if direction == 'up':
-            step, stop = -1, -block_length
-            f = lambda c: [(x + c, y), (x + c, y - 1)]
-        elif direction == 'left':
-            step, stop = 1, block_length
-            f = lambda c: [(x, y - c), (x - 1, y - c)]
-        else:
-            step, stop = 1, block_length
-            f = lambda c: [(x + c, y), (x + c, y - 1)]
-        for i in range(0, stop, step):
-            path += f(i)
-        return path
-
-    def set_cells(self, path):
-        for x, y in path:
+    def is_bit(self, x, y):
+        if x < 0 or y < 0:
+            return False
+        try:
             bit = self.bits[x][y]
+        except IndexError:
+            return False
+
+        return bit.is_valid()
+
+    def distance_to_edge(self, x, y, block_size=4):
+        pass
+        # i = 0
+        # distance_up, distance_down, distance_left = 0, 0, 0
+        # while i < block_size + 1:
+        #     if self.is_bit(x + i, y):
+        #         i += 1
+
+    def is_path_valid(self, x, y, path):
+        return all([self.is_bit(x + a, y + b) for a, b in path])
+
+    def draw_pivots_from(self, x, y, block_size=8):
+        length = block_size
+        if self.is_bit(x, y) and self.bits[x][y].is_bridge:
+            if self.is_bit(x + 1, y):
+                x, y = x + 1, y
+            elif self.is_bit(x - 1, y):
+                x, y = x - 1, y
+            elif self.is_bit(x, y + 1):
+                x, y = x, y + 1
+            elif self.is_bit(x, y - 1):
+                x, y = x, y - 1
+
+        for path in [UPWARD, TURN_DOWNWARD, DOWNWARD, TURN_UPWARD]:
+            if self.is_path_valid(x, y, path[0:length]):
+                break
+
+        for a, b in path[0:length]:
+            bit = self.bits[x + a][y + b]
             bit.active = True
+        bit.is_fixed = True
 
-
-    def available_paths(self, x=None, y=None, block_size=8):
-        if not x:
-            path = self.gen_path(20, 20, block_length=block_size // 2)
-            x, y = path[-1]
-            self.set_cells(path)
-            return path, x, y
-
-        for i, j, direction in PATHS:
-            try:
-                sample_bit = self.bits[x + i][y + j]
-            except IndexError:
-                pass
-            else:
-                if sample_bit.is_bridge and direction == 'down':
-                    i += 1
-                elif sample_bit.is_bridge and direction == 'up':
-                    i -= 1
-            path = self.gen_path(x + i, y + j, block_length=block_size // 2, direction=direction)
-            if self.is_path_legal(path):
-                self.set_cells(path)
-                self.previous = direction
-                x, y = path[-1]
-                return path, x, y
-        print(x, y)
-        return None, x, y
-
-    def is_path_legal(self, path):
-        for x, y in path:
-            try:
-                bit = self.bits[x][y]
-            except IndexError:
-                return False
-
-            if bit.is_not_legal():
-                return False
-
-        return True
+        if self.is_bit(bit.x - 1, bit.y + 1):
+            return bit.x - 1, bit.y + 1
+        if self.is_bit(bit.x + 1, bit.y + 1):
+            return bit.x + 1, bit.y + 1
+        else:
+            return (None, None)
 
     def show(self):
         qr = "".join([" " + str(n) for n in range(0, 21)])
@@ -187,23 +201,24 @@ class QR(object):
 
         print(qr)
 
+    def check_path(self, x, y, block_size=8):
+        i = block_size // 2
+        path = []
+        while i > 0:
+            if not self.is_bit(x - i, y):
+                # flush saved path and break from loop
+                path = []
+                i = -4
+                break
+            else:
+                # determine y axis location
+                z = 1 if i % 2 == 0 else 0
+                path.append((x - i, y - z))
+            i -= 1
+
 qr = QR()
-def test_me():
-    blocks = [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]
-    paths = []
-    path, x, y = qr.available_paths(block_size=4)
-    paths.append(path)
-    for block in blocks:
-        path, x, y = qr.available_paths(x=x, y=y)
-        if path:
-            paths.append(path)
-
-    for path in paths:
-        xs, xa = path[0]
-        a, b = path[-1]
-        qr.bits[xs][xa].initial = True
-        qr.bits[a][b].is_fixed = True
-
-qr.show()
-directions = qr.get_direction(18, 20)
-print(directions)
+x, y = 20, 20
+for block in SAMPLE_BLOCKS:
+    if x and y:
+        x, y = qr.draw_pivots_from(x, y, block_size=block)
+    qr.show()
