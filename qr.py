@@ -77,57 +77,37 @@ LOOKUP_PATHS = [
 
 
 class Bit(object):
-    def __init__(self, x=None, y=None, active=False, is_fixed=False, is_format=False, is_bridge=False, initial=False):
-        self.initial = initial
+    def __init__(self, x=None, y=None):
+        self.initial = False
         self.x = x
         self.y = y
-        self.active = active
-        self.is_fixed = is_fixed
-        if x == 6 and y >= 8 and y <= 12:
-            self.is_bridge = True
-        elif x >= 8 and x <= 12 and y == 6:
+        self.active = False
+        if y >= 13 and x <= 8 or y <= 8 and x <= 8 or y <= 8 and x >= 13:
+            self.is_fixed_corner = True
+        else:
+            self.is_fixed_corner = False
+
+        if x == 6 and y >= 8 and y <= 12 or x >= 8 and x <= 12 and y == 6:
             self.is_bridge = True
         else:
             self.is_bridge = False
 
-        if x == 8 and y <= 8:
-            self.is_format = True
-        elif x == 8 and y >= 13:
-            self.is_format = True
-        elif x <= 8 and y == 8:
-            self.is_format = True
-        else:
-            self.is_format = False
+        self.useable = not self.is_fixed_corner and not self.is_bridge
 
-    def is_not_legal(self):
-        if self.active or self.is_format or self.is_fixed:
-            return True
-        return False
-
-    def is_valid(self):
-        if self.active or self.is_format or self.is_fixed or self.is_bridge:
-            return False
-        return True
-
-    def is_free(self):
-        if self.active or self.is_format or self.is_fixed or self.is_bridge:
-            return False
-        return True
+    def mark_cell_active(self):
+        self.active = True
+        self.useable = False
 
     def __str__(self):
         padding = " "
-        if self.initial:
-            return padding + 'M'
+        if self.is_fixed_corner:
+            return padding + 'X'
         if self.is_bridge:
             return padding + 'B'
-        if self.is_format:
-            return padding + 'F'
-        if self.active and self.is_fixed:
-            return padding + 'X'
-        if self.active:
-            return padding + "#"
-        if self.is_fixed:
-            return padding + "0"
+        if self.active and self.is_fixed_corner:
+            return padding + 'M'
+        if self.active and not self.is_fixed_corner:
+            return padding + '#'
         return "  "
 
 
@@ -139,42 +119,36 @@ class QR(object):
         for x in range(0, 21):
             row = []
             for y in range(0, 21):
-                if y >= 13 and x <= 7 or y <= 7 and x <= 7 or y <= 7 and x >= 13:
-                    bit = Bit(x=x, y=y, is_fixed=True)
-                else:
-                    bit = Bit(x=x, y=y, is_fixed=False)
+                bit = Bit(x=x, y=y)
                 row.append(bit)
             bit_rows.append(row)
 
         self.bits = bit_rows
 
-    def is_bit(self, x, y):
-        if x < 0 or y < 0 or x >= self.size or y >= self.size:
-            return False
-        bit = self.bits[x][y]
-        return bit.is_valid()
-
-    def at_fixed_point(self, x, y):
+    def is_cell_valid(self, x, y):
         try:
             bit = self.bits[x][y]
         except IndexError:
             return False
-        return bit.is_bridge
+        return bit.useable
 
-    def is_cell_valid(self, x, y):
-        if x < 0 or y < 0 or x >= self.size or y >= self.size:
-            return False
-        bit = self.bits[x][y]
-        return bit.is_free()
-
+    def is_cell_invalid(self, x, y):
+        return not self.is_cell_valid(x, y)
 
     def traverse_upwards(self, x, y, block_size):
         path = []
-        if not self.is_bit(x, y + 1):
+        if not self.is_cell_valid(x, y + 1):
             floor = y + 1
         else:
             floor = self.size
         while len(path) < block_size:
+            # if self.is_cell_invalid(x - 1, y)
+
+            if self.is_cell_invalid(x, y - 1) and self.is_cell_invalid(x, y + 1):
+                path.append((x, y))
+                x -= 1
+
+
             if self.is_cell_valid(x + 1, y) and (x + 1, y) not in path:
                 path.append((x, y))
                 if self.is_cell_valid(x, y - 1):
@@ -236,7 +210,7 @@ blocks = [4, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]
 for path in qr.traverse(x, y, blocks):
     for a, b in path:
         bit = qr.bits[a][b]
-        bit.active = True
-    bit.is_fixed = True
-
+        bit.mark_cell_active()
+    bit.is_fixed_corner = True
+set_trace()
 qr.show()
