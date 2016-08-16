@@ -77,22 +77,27 @@ LOOKUP_PATHS = [
 
 
 class Bit(object):
-    def __init__(self, x=None, y=None):
+    def __init__(self, x=None, y=None, size=21):
         self.initial = False
         self.x = x
         self.y = y
         self.active = False
-        if y >= 13 and x <= 8 or y <= 8 and x <= 8 or y <= 8 and x >= 13:
+        if y >= (size - 8) and x <= 8 or y <= 8 and x <= 8 or y <= 8 and x >= (size - 8):
             self.is_fixed_corner = True
         else:
             self.is_fixed_corner = False
 
-        if x == 6 and y >= 8 and y <= 12 or x >= 8 and x <= 12 and y == 6:
+        if x == 6 and y >= 8 and y <= (size - 9) or x >= 8 and x <= (size - 9) and y == 6:
             self.is_bridge = True
         else:
             self.is_bridge = False
 
         self.useable = not self.is_fixed_corner and not self.is_bridge
+
+    def __eq__(self, bit):
+        if not bit:
+            return False
+        return bit.x is self.x and bit.y is self.y
 
     def mark_cell_active(self):
         self.active = True
@@ -116,82 +121,103 @@ class QR(object):
         self.size = size
         self.previous = None
         bit_rows = []
-        for x in range(0, 21):
+        for x in range(0, size):
             row = []
-            for y in range(0, 21):
-                bit = Bit(x=x, y=y)
+            for y in range(0, size):
+                bit = Bit(x=x, y=y, size=size)
                 row.append(bit)
             bit_rows.append(row)
 
         self.bits = bit_rows
 
-    def is_cell_valid(self, x, y):
+    def get_cell(self, x, y):
         try:
             bit = self.bits[x][y]
         except IndexError:
             return False
-        return bit.useable
+        return bit
+
+    def is_cell_valid(self, x, y):
+        bit = self.get_cell(x, y)
+        return bit and bit.useable
 
     def is_cell_invalid(self, x, y):
         return not self.is_cell_valid(x, y)
 
-    def traverse_upwards(self, x, y, block_size):
-        path = []
-        if not self.is_cell_valid(x, y + 1):
-            floor = y + 1
+    def is_cell_bridge(self, x, y):
+        cell = self.get_cell(x, y)
+        if not cell:
+            return False
+        return cell.is_bridge
+
+    def get_surrounding_cells(self, x, y):
+        return [
+            self.get_cell(x - 1, y),
+            self.get_cell(x, y + 1),
+            self.get_cell(x + 1, y),
+            self.get_cell(x, y - 1),
+        ]
+
+    def traverse_gap(self, x, y, direction='up'):
+        if direction == 'up':
+            while self.is_cell_bridge(x, y):
+                x -= 1
         else:
-            floor = self.size
-        while len(path) < block_size:
-            # if self.is_cell_invalid(x - 1, y)
-
-            if self.is_cell_invalid(x, y - 1) and self.is_cell_invalid(x, y + 1):
-                path.append((x, y))
-                x -= 1
-
-
-            if self.is_cell_valid(x + 1, y) and (x + 1, y) not in path:
-                path.append((x, y))
-                if self.is_cell_valid(x, y - 1):
-                    path.append((x, y - 1))
+            while self.is_cell_bridge(x, y):
                 x += 1
-            elif not self.is_cell_valid(x - 1, y - 1) and not self.is_cell_valid(x - 1, y):
-                path.append((x, y))
-                y -= 1
-            elif y + 1 == floor and self.is_cell_valid(x, y) and (x, y) not in path:
-                path.append((x, y))
-                if self.is_cell_valid(x, y - 1):
-                    path.append((x, y - 1))
-                    x -= 1
+        return x, y
 
-        return path, x, y
+    def traverse_upwards(self, x, y, block_size):
+        current_cell = self.get_cell(x, y)
+        current_cell.mark_cell_active()
+        block_size -= 1
+        if self.is_cell_bridge(x - 1, y) and self.is_cell_bridge(x - 1, y + 1):
+            x, y = self.traverse_gap(x - 1, y + 1)
+        if block_size == 0:
+            return x, y
+        elif block_size == 1:
+            # so I can see the last cell that was flipped
+            current_cell.is_fixed_corner = True
 
-    def traverse_downwards(self, x, y, block):
-        path = []
-        floor = y + 1
-        while len(path) < block:
-            if self.is_cell_valid(x - 1, y) and (x - 1, y) not in path:
-                path.append((x, y))
-                if self.is_cell_valid(x, y - 1):
-                    path.append((x, y - 1))
-                x -= 1
-            if not self.is_cell_valid(x + 1, y - 1) and not self.is_cell_valid(x + 1, y):
-                path.append((x, y))
-                y -= 1
-            if y + 1 == floor and self.is_cell_valid(x, y) and (x, y) not in path:
-                path.append((x, y))
-                if self.is_cell_valid(x, y - 1):
-                    path.append((x, y - 1))
-                x += 1
+        if self.is_cell_valid(x + 1, y + 1) and self.is_cell_invalid(x, y + 1):
+            return self.traverse_upwards(x + 1, y + 1, block_size)
 
-        return path, x, y
+        if self.is_cell_invalid(x, y + 1) and self.is_cell_invalid(x - 1, y):
+            return self.traverse_upwards(x, y - 1, block_size)
 
-    def traverse(self, x, y, blocks, direction='up'):
-        for block in blocks:
-            if not self.is_cell_valid(x - 1, y) and not self.is_cell_valid(x, y + 1):
-                path, x, y = self.traverse_downwards(x, y, block)
-            if not self.is_cell_valid(x + 1, y) and not self.is_cell_valid(x, y + 1):
-                path, x, y = self.traverse_upwards(x, y, block)
-            yield path
+        if self.is_cell_valid(x - 1, y + 1):
+            return self.traverse_upwards(x - 1, y + 1, block_size)
+
+        if self.is_cell_valid(x, y - 1):
+            return self.traverse_upwards(x, y - 1, block_size)
+
+    def traverse_downwards(self, x, y, block_size):
+        current_cell = self.get_cell(x, y)
+        current_cell.mark_cell_active()
+
+        if block_size == 0:
+            return x, y
+
+        if self.is_cell_valid(x - 1, y) and self.is_cell_valid(x - 1, y + 1):
+            return self.traverse_downwards(x, y - 1, block_size - 1)
+
+        if self.is_cell_invalid(x + 1, y) and self.is_cell_invalid(x, y + 1):
+            return self.traverse_downwards(x, y - 1, block_size - 1)
+
+        if self.is_cell_invalid(x + 1, y) and self.is_cell_valid(x - 1, y + 1):
+            return self.traverse_downwards(x - 1, y + 1, block_size - 1)
+
+        if self.is_cell_valid(x + 1, y + 1):
+            return self.traverse_downwards(x + 1, y + 1, block_size - 1)
+
+        if self.is_cell_valid(x, y - 1) and self.is_cell_valid(x - 1, y):
+            return self.traverse_downwards(x, y - 1, block_size - 1)
+
+        if self.is_cell_invalid(x + 1, y) and self.is_cell_invalid(x, y + 1):
+            return self.traverse_downwards(x, y - 1, block_size - 1)
+
+        if self.is_cell_valid(x, y - 1):
+            return self.traverse_downwards(x, y - 1, block_size - 1)
 
     def show(self):
         qr = "".join([" " + str(n) if n < 10 else " " + str(n - 10) for n in range(0, 21)])
@@ -203,14 +229,20 @@ class QR(object):
 
         print(qr)
 
-
-qr = QR()
-x, y = 20, 20
-blocks = [4, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]
-for path in qr.traverse(x, y, blocks):
-    for a, b in path:
-        bit = qr.bits[a][b]
-        bit.mark_cell_active()
-    bit.is_fixed_corner = True
-set_trace()
+size = 33
+qr = QR(size=size)
+x, y = size, size
+blocks = [4, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]
+for t in range(size - 7, size - 4):
+    for f in range(size - 7, size - 4):
+        qr.bits[t][f].is_bridge = True
+# for path in qr.traverse(x, y, blocks):
+#     for bit in path:
+#         bit.mark_cell_active()
+x, y = qr.traverse_upwards(x - 1, y - 1, 4)
+for i in range(0, 13):
+    if qr.is_cell_valid(x - 1, y):
+        x, y = qr.traverse_upwards(x, y, 8)
+    else:
+        x, y = qr.traverse_downwards(x, y, 8)
 qr.show()
