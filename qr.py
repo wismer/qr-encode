@@ -7,75 +7,6 @@ from ipdb import set_trace
 # the first cell position
 # if the cells are less than the current block size, but are equal to half,
 
-SAMPLE_BLOCKS = [4, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 4]
-UPWARD = [
-    (0, 0),
-    (0, -1),
-    (-1, 0),
-    (-1, -1),
-    (-2, 0),
-    (-2, -1),
-    (-3, 0),
-    (-3, -1)
-]
-DOWNWARD = [
-    (0, 0),
-    (0, -1),
-    (1, 0),
-    (1, -1),
-    (2, 0),
-    (2, -1),
-    (3, 0),
-    (3, -1)
-]
-
-TURN_UPWARD = [
-    (0, 0),
-    (0, -1),
-    (1, 0),
-    (1, -1),
-    (1, -2),
-    (1, -3),
-    (0, -2),
-    (0, -3)
-]
-
-TURN_DOWNWARD = [
-    (0, 0),
-    (0, -1),
-    (-1, 0),
-    (-1, -1),
-    (-1, -2),
-    (-1, -3),
-    (0, -2),
-    (0, -3)
-]
-
-LOOKUP_PATHS = [
-    {
-        'paths': UPWARD,
-        'adjust': (-1, 0)
-    },
-    {
-        'paths': DOWNWARD,
-        'adjust': (1, 0)
-    },
-    {
-        'paths': [
-            (0, 0),
-            (-1, 0),
-            (0, -1),
-            (-1, -1),
-            (0, -2),
-            (-1, -2),
-            (-1, -3),
-            (0, -3)
-        ],
-        'adjust': (1, 0)
-    },
-]
-
-
 class Bit(object):
     def __init__(self, x=None, y=None, size=21):
         self.initial = False
@@ -104,7 +35,7 @@ class Bit(object):
         self.useable = False
 
     def __str__(self):
-        padding = " "
+        padding = "  "
         if self.is_fixed_corner:
             return padding + 'X'
         if self.is_bridge:
@@ -113,7 +44,7 @@ class Bit(object):
             return padding + 'M'
         if self.active and not self.is_fixed_corner:
             return padding + '#'
-        return "  "
+        return "   "
 
 
 class QR(object):
@@ -131,11 +62,9 @@ class QR(object):
         self.bits = bit_rows
 
     def get_cell(self, x, y):
-        try:
-            bit = self.bits[x][y]
-        except IndexError:
+        if x < 0 or y < 0 or x >= self.size or y >= self.size:
             return False
-        return bit
+        return self.bits[x][y]
 
     def is_cell_valid(self, x, y):
         bit = self.get_cell(x, y)
@@ -150,14 +79,6 @@ class QR(object):
             return False
         return cell.is_bridge
 
-    def get_surrounding_cells(self, x, y):
-        return [
-            self.get_cell(x - 1, y),
-            self.get_cell(x, y + 1),
-            self.get_cell(x + 1, y),
-            self.get_cell(x, y - 1),
-        ]
-
     def traverse_gap(self, x, y, direction='up'):
         if direction == 'up':
             while self.is_cell_bridge(x, y):
@@ -168,81 +89,86 @@ class QR(object):
         return x, y
 
     def traverse_upwards(self, x, y, block_size):
-        current_cell = self.get_cell(x, y)
-        current_cell.mark_cell_active()
-        block_size -= 1
-        if self.is_cell_bridge(x - 1, y) and self.is_cell_bridge(x - 1, y + 1):
-            x, y = self.traverse_gap(x - 1, y + 1)
+        if block_size > 0:
+            current_cell = self.get_cell(x, y)
+
+            if not current_cell:
+                set_trace()
+
+            current_cell.mark_cell_active()
         if block_size == 0:
             return x, y
         elif block_size == 1:
-            # so I can see the last cell that was flipped
             current_cell.is_fixed_corner = True
+            # if self.is_cell_bridge(x - 1, y):
+            #     return self.traverse_gap(x - 1, y + 1)
 
-        if self.is_cell_valid(x + 1, y + 1) and self.is_cell_invalid(x, y + 1):
-            return self.traverse_upwards(x + 1, y + 1, block_size)
+        if self.is_cell_valid(x - 1, y) and self.is_cell_valid(x, y - 1):
+            if self.is_cell_valid(x - 1, y + 1):
+                return self.traverse_upwards(x - 1, y + 1, block_size - 1)
+            else:
+                return self.traverse_upwards(x, y - 1, block_size - 1)
 
-        if self.is_cell_invalid(x, y + 1) and self.is_cell_invalid(x - 1, y):
-            return self.traverse_upwards(x, y - 1, block_size)
+        if self.is_cell_invalid(x - 1, y) and not self.is_cell_bridge(x - 1, y):
+            if self.is_cell_valid(x, y - 1) and self.is_cell_valid(x + 1, y - 1):
+                return self.traverse_downwards(x, y - 1, block_size - 1)
+        if self.is_cell_bridge(x - 1, y):
+            if block_size == 1:
+                return self.traverse_gap(x - 1, y + 1)
+            elif self.is_cell_valid(x + 1, y - 1):
+                set_trace()
 
-        if self.is_cell_valid(x - 1, y + 1):
-            return self.traverse_upwards(x - 1, y + 1, block_size)
-
-        if self.is_cell_valid(x, y - 1):
-            return self.traverse_upwards(x, y - 1, block_size)
+        return self.traverse_upwards(x, y - 1, block_size - 1)
 
     def traverse_downwards(self, x, y, block_size):
-        current_cell = self.get_cell(x, y)
-        current_cell.mark_cell_active()
+        if block_size > 0:
+            current_cell = self.get_cell(x, y)
+            if not current_cell:
+                set_trace()
+            current_cell.mark_cell_active()
 
         if block_size == 0:
             return x, y
+        elif block_size == 1:
+            current_cell.is_fixed_corner = True
 
-        if self.is_cell_valid(x - 1, y) and self.is_cell_valid(x - 1, y + 1):
-            return self.traverse_downwards(x, y - 1, block_size - 1)
+        if self.is_cell_valid(x + 1, y) and self.is_cell_valid(x, y - 1):
+            if self.is_cell_valid(x + 1, y + 1):
+                return self.traverse_downwards(x + 1, y + 1, block_size - 1)
+            else:
+                return self.traverse_downwards(x, y - 1, block_size - 1)
 
-        if self.is_cell_invalid(x + 1, y) and self.is_cell_invalid(x, y + 1):
-            return self.traverse_downwards(x, y - 1, block_size - 1)
+        if self.is_cell_invalid(x + 1, y) and not self.is_cell_bridge(x + 1, y):
+            return self.traverse_upwards(x, y - 1, block_size - 1)
+        elif self.is_cell_bridge(x + 1, y):
+            if block_size == 1:
+                set_trace()
+                return self.traverse_gap(x + 1, y)
+            elif self.is_cell_valid(x - 1, y - 1):
+                set_trace()
 
-        if self.is_cell_invalid(x + 1, y) and self.is_cell_valid(x - 1, y + 1):
-            return self.traverse_downwards(x - 1, y + 1, block_size - 1)
-
-        if self.is_cell_valid(x + 1, y + 1):
-            return self.traverse_downwards(x + 1, y + 1, block_size - 1)
-
-        if self.is_cell_valid(x, y - 1) and self.is_cell_valid(x - 1, y):
-            return self.traverse_downwards(x, y - 1, block_size - 1)
-
-        if self.is_cell_invalid(x + 1, y) and self.is_cell_invalid(x, y + 1):
-            return self.traverse_downwards(x, y - 1, block_size - 1)
-
-        if self.is_cell_valid(x, y - 1):
-            return self.traverse_downwards(x, y - 1, block_size - 1)
+        return self.traverse_downwards(x, y - 1, block_size - 1)
 
     def show(self):
-        qr = "".join([" " + str(n) if n < 10 else " " + str(n - 10) for n in range(0, 21)])
+        qr = ""
+        for n in range(0, self.size):
+            qr += "{0:{width}}".format(n, width=3)
+        # qr = " ".join(["  " + str(n) for n in range(0, self.size)])
         qr += "\n"
         for (x, bit_row) in enumerate(self.bits):
             for bit in bit_row:
-                qr += str(bit)
+                qr += "" + str(bit)
             qr += " {x}".format(x=x) + "\n"
 
         print(qr)
 
 size = 33
 qr = QR(size=size)
-x, y = size, size
-blocks = [4, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]
-for t in range(size - 7, size - 4):
-    for f in range(size - 7, size - 4):
-        qr.bits[t][f].is_bridge = True
-# for path in qr.traverse(x, y, blocks):
-#     for bit in path:
-#         bit.mark_cell_active()
-x, y = qr.traverse_upwards(x - 1, y - 1, 4)
-for i in range(0, 13):
-    if qr.is_cell_valid(x - 1, y):
-        x, y = qr.traverse_upwards(x, y, 8)
-    else:
-        x, y = qr.traverse_downwards(x, y, 8)
-qr.show()
+x, y = size - 1, size - 1
+# for t in range(size - 7, size - 4):
+#     for f in range(size - 7, size - 4):
+#         qr.bits[t][f].is_bridge = True
+x, y = qr.traverse_upwards(x, y, 4)
+for i in range(0, 49):
+    qr.show()
+    x, y = qr.traverse_upwards(x, y, 8)
