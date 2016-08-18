@@ -79,6 +79,12 @@ class QR(object):
             return False
         return cell.is_bridge
 
+    def is_cell_fixed_corner(self, x, y):
+        cell = self.get_cell(x, y)
+        if not cell:
+            return False
+        return cell.is_fixed_corner
+
     def traverse_gap(self, x, y, direction='up'):
         if direction == 'up':
             while self.is_cell_bridge(x, y):
@@ -87,6 +93,58 @@ class QR(object):
             while self.is_cell_bridge(x, y):
                 x += 1
         return x, y
+
+    def traverse_path_downward(self, x, y, block_size, path=None):
+        path = path or []
+
+        while block_size > len(path):
+            if x + 1 >= self.size:
+                if self.is_cell_valid(x, y - 1) and self.is_cell_invalid(x, y - 2):
+                    y -= 1
+            if (x, y) not in path:
+                path.append((x, y))
+            if self.is_cell_bridge(x + 1, y):
+                if (x - 1, y - 1) in path and self.is_cell_valid(x, y - 1):
+                    y -= 1
+                else:
+                    x, y = self.traverse_gap(x + 1, y + 1, direction='down')
+            elif self.is_cell_invalid(x + 1, y) and (self.is_cell_invalid(x, y + 1) or (x, y + 1) in path):
+                path, x, y = self.traverse_path_upward(x, y - 1, block_size, path=path)
+            elif self.is_cell_valid(x + 1, y + 1) and (x + 1, y + 1) not in path:
+                y += 1
+                x += 1
+            elif self.is_cell_valid(x, y - 1) and (x, y - 1) not in path:
+                y -= 1
+            elif self.is_cell_invalid(x, y - 1) and (x + 1, y) not in path:
+                x += 1
+
+        return path, x, y
+
+    def traverse_path_upward(self, x, y, block_size, path=None):
+        path = path or []
+
+        while block_size > len(path):
+            if (x, y) not in path:
+                path.append((x, y))
+            if self.is_cell_bridge(x - 1, y):
+                if (x + 1, y - 1) in path and self.is_cell_valid(x, y - 1):
+                    y -= 1
+                else:
+                    x, y = self.traverse_gap(x - 1, y + 1)
+            elif self.is_cell_invalid(x - 1, y) and (self.is_cell_invalid(x, y + 1) or (x, y + 1) in path):
+                if self.is_cell_valid(x + 1, y + 1) and (x + 1, y + 1) not in path:
+                    path, x, y = self.traverse_path_downward(x, y, block_size, path=path)
+                else:
+                    y -= 1
+            elif self.is_cell_valid(x - 1, y + 1) and (x - 1, y + 1) not in path:
+                y += 1
+                x -= 1
+            elif self.is_cell_valid(x, y - 1) and (x, y - 1) not in path:
+                y -= 1
+            elif self.is_cell_invalid(x, y - 1) and (x - 1, y) not in path:
+                x -= 1
+
+        return path, x, y
 
     def traverse_upwards(self, x, y, block_size):
         if block_size > 0:
@@ -149,7 +207,7 @@ class QR(object):
 
         return self.traverse_downwards(x, y - 1, block_size - 1)
 
-    def show(self):
+    def show(self, path, x, y):
         qr = ""
         for n in range(0, self.size):
             qr += "{0:{width}}".format(n, width=3)
@@ -160,15 +218,42 @@ class QR(object):
                 qr += "" + str(bit)
             qr += " {x}".format(x=x) + "\n"
 
-        print(qr)
+        path = [" ({0}, {1}) ".format(x, y) for x, y in path]
 
-size = 33
+        print(qr + "\n" + "".join(path) + "\n" + "x: {x}, y: {y}".format(x=x, y=y))
+
+size = 49
 qr = QR(size=size)
 x, y = size - 1, size - 1
-# for t in range(size - 7, size - 4):
-#     for f in range(size - 7, size - 4):
-#         qr.bits[t][f].is_bridge = True
-x, y = qr.traverse_upwards(x, y, 4)
-for i in range(0, 49):
-    qr.show()
-    x, y = qr.traverse_upwards(x, y, 8)
+for t in range(size - 9, size - 4):
+    for f in range(size - 9, size - 4):
+        qr.bits[t][f].is_bridge = True
+
+def traversing_blind():
+    x, y = qr.traverse_upwards(x, y, 4)
+    for i in range(0, 49):
+        qr.show()
+        x, y = qr.traverse_upwards(x, y, 8)
+
+def traversing_path(size):
+    x, y = size - 1, size - 1
+    # path, x, y = qr.traverse_path_upward(x, y, 4)
+    # for a, b in path:
+    #     cell = qr.get_cell(a, b)
+    #     if cell:
+    #         cell.mark_cell_active()
+    # cell.is_fixed_corner = True
+
+    for i in range(0, 95):
+        path, x, y = qr.traverse_path_upward(x, y, 8)
+        print(x, y)
+        for a, b in path:
+            cell = qr.get_cell(a, b)
+            if cell:
+                if cell.x == 21 and cell.y == 26:
+                    set_trace()
+                cell.mark_cell_active()
+        cell.is_fixed_corner = True
+        qr.show(path, x, y)
+
+traversing_path(size)
