@@ -47,6 +47,20 @@ class Bit(object):
         return "   "
 
 
+class Point(namedtuple('Point', ['x', 'y'])):
+    def __sub__(self, other):
+        return Point(self.x - other, self.y)
+
+    def __add__(self, other):
+        return Point(self.x + other, self.y)
+
+    def __rshift__(self, other):
+        return Point(self.x, self.y + other)
+
+    def __lshift__(self, other):
+        return Point(self.x, self.y - other)
+
+
 class QR(object):
     def __init__(self, size=21):
         self.size = size
@@ -67,14 +81,16 @@ class QR(object):
         return self.bits[x][y]
 
     def is_cell_valid(self, x, y):
+        if (x, y) in self.path:
+            return False
         bit = self.get_cell(x, y)
         return bit and bit.useable
 
     def is_cell_invalid(self, x, y):
         return not self.is_cell_valid(x, y)
 
-    def is_cell_bridge(self, x, y):
-        cell = self.get_cell(x, y)
+    def is_cell_bridge(self, point):
+        cell = self.get_cell(*point)
         if not cell:
             return False
         return cell.is_bridge
@@ -84,15 +100,6 @@ class QR(object):
         if not cell:
             return False
         return cell.is_fixed_corner
-
-    def traverse_gap(self, x, y, direction='up'):
-        if direction == 'up':
-            while self.is_cell_bridge(x, y):
-                x -= 1
-        else:
-            while self.is_cell_bridge(x, y):
-                x += 1
-        return x, y
 
     def traverse_path_downward(self, x, y, block_size, path=None):
         path = path or []
@@ -120,92 +127,115 @@ class QR(object):
 
         return path, x, y
 
-    def traverse_path_upward(self, x, y, block_size, path=None):
-        path = path or []
+    def avail_paths(self, point):
+        paths = {}
+        if self.is_cell_valid(*point + 1):
+            paths['backward'] = point + 1
+        if self.is_cell_valid(*point - 1):
+            paths['forward'] = point - 1
+        if self.is_cell_valid(*point << 1):
+            paths['leftward'] = point << 1
+        if self.is_cell_valid(*point >> 1):
+            paths['rightward'] = point >> 1
+        return paths
 
-        while block_size > len(path):
-            if (x, y) not in path:
-                path.append((x, y))
-            if self.is_cell_bridge(x - 1, y):
-                if (x + 1, y - 1) in path and self.is_cell_valid(x, y - 1):
-                    y -= 1
-                else:
-                    x, y = self.traverse_gap(x - 1, y + 1)
-            elif self.is_cell_invalid(x - 1, y) and (self.is_cell_invalid(x, y + 1) or (x, y + 1) in path):
-                if self.is_cell_valid(x + 1, y + 1) and (x + 1, y + 1) not in path:
-                    path, x, y = self.traverse_path_downward(x, y, block_size, path=path)
-                else:
-                    y -= 1
-            elif self.is_cell_valid(x - 1, y + 1) and (x - 1, y + 1) not in path:
+    def single_route(self, point, paths):
+        x, y = point
+        if paths.get('rightward'):
+            x, y = paths['rightward']
+        elif paths.get('leftward'):
+            lower_left = (point + 1) << 1
+            upper_right = (point - 1) << 1
+            if self.is_cell_bridge(point - 1) and self.is_cell_valid(*lower_left):
+                point -= 1
+                while self.is_cell_bridge(point):
+                    point -= 1
+                x, y = point >> 1
+            elif self.is_cell_bridge(point + 1) and self.is_cell_valid(*upper_right):
+                point += 1
+                while self.is_cell_bridge(point):
+                    point += 1
+                x, y = point >> 1
+            else:
+                y -= 1
+        elif paths.get('forward'):
+            x, y = paths['forward']
+        else:
+            subpaths = self.avail_paths(paths['backward'])
+            if subpaths.get('rightward'):
+                return subpaths['rightward']
+            else:
+                set_trace()
+        return x, y
+
+    def double_route(self, point, paths):
+        x, y = point
+        if 'leftward' in paths and 'forward' in paths:
+            forward_paths = self.avail_paths(paths['forward'])
+            if forward_paths.get('rightward'):
                 y += 1
                 x -= 1
-            elif self.is_cell_valid(x, y - 1) and (x, y - 1) not in path:
+            else:
+                if self.is_cell_bridge((point - 1) >> 1):
+                    x -= 1
+                else:
+                    y -= 1
+        elif 'leftward' in paths and 'backward' in paths:
+            backward_paths = self.avail_paths(paths['backward'])
+            if backward_paths.get('rightward'):
+                y += 1
+                x += 1
+            else:
                 y -= 1
-            elif self.is_cell_invalid(x, y - 1) and (x - 1, y) not in path:
-                x -= 1
+        else:
+            set_trace()
 
+        return x, y
+
+    def triple_route(self, point, paths):
+        x, y = point
+        if not paths.get('rightward'):
+            y -= 1
+        elif not paths.get('leftward'):
+            y += 1
+        elif not paths.get('forward'):
+            x += 1
+        else:
+            x -= 1
+
+        return x, y
+
+    def traverse_gap(self, point):
+        if not self.is_cell_valid(*point + 1):
+            point -= 1
+            while self.is_cell_bridge(point):
+                point -= 1
+        else:
+            point += 1
+            while self.is_cell_bridge(point):
+                point += 1
+
+        return point
+
+    def traverse_path_upward(self, x, y, block_size, path=None):
+        self.path = []
+        while block_size > len(self.path):
+            point = Point(x, y)
+            self.path.append(point)
+            paths = self.avail_paths(point)
+            path_count = len(paths)
+            if path_count == 2:
+                x, y = self.double_route(point, paths)
+            elif path_count == 3:
+                x, y = self.triple_route(point, paths)
+            elif path_count == 1:
+                x, y = self.single_route(point, paths)
+            else:
+                set_trace()
+        # reset path to empty
+        path = self.path
+        self.path = []
         return path, x, y
-
-    def traverse_upwards(self, x, y, block_size):
-        if block_size > 0:
-            current_cell = self.get_cell(x, y)
-
-            if not current_cell:
-                set_trace()
-
-            current_cell.mark_cell_active()
-        if block_size == 0:
-            return x, y
-        elif block_size == 1:
-            current_cell.is_fixed_corner = True
-            # if self.is_cell_bridge(x - 1, y):
-            #     return self.traverse_gap(x - 1, y + 1)
-
-        if self.is_cell_valid(x - 1, y) and self.is_cell_valid(x, y - 1):
-            if self.is_cell_valid(x - 1, y + 1):
-                return self.traverse_upwards(x - 1, y + 1, block_size - 1)
-            else:
-                return self.traverse_upwards(x, y - 1, block_size - 1)
-
-        if self.is_cell_invalid(x - 1, y) and not self.is_cell_bridge(x - 1, y):
-            if self.is_cell_valid(x, y - 1) and self.is_cell_valid(x + 1, y - 1):
-                return self.traverse_downwards(x, y - 1, block_size - 1)
-        if self.is_cell_bridge(x - 1, y):
-            if block_size == 1:
-                return self.traverse_gap(x - 1, y + 1)
-            elif self.is_cell_valid(x + 1, y - 1):
-                set_trace()
-
-        return self.traverse_upwards(x, y - 1, block_size - 1)
-
-    def traverse_downwards(self, x, y, block_size):
-        if block_size > 0:
-            current_cell = self.get_cell(x, y)
-            if not current_cell:
-                set_trace()
-            current_cell.mark_cell_active()
-
-        if block_size == 0:
-            return x, y
-        elif block_size == 1:
-            current_cell.is_fixed_corner = True
-
-        if self.is_cell_valid(x + 1, y) and self.is_cell_valid(x, y - 1):
-            if self.is_cell_valid(x + 1, y + 1):
-                return self.traverse_downwards(x + 1, y + 1, block_size - 1)
-            else:
-                return self.traverse_downwards(x, y - 1, block_size - 1)
-
-        if self.is_cell_invalid(x + 1, y) and not self.is_cell_bridge(x + 1, y):
-            return self.traverse_upwards(x, y - 1, block_size - 1)
-        elif self.is_cell_bridge(x + 1, y):
-            if block_size == 1:
-                set_trace()
-                return self.traverse_gap(x + 1, y)
-            elif self.is_cell_valid(x - 1, y - 1):
-                set_trace()
-
-        return self.traverse_downwards(x, y - 1, block_size - 1)
 
     def show(self, path, x, y):
         qr = ""
@@ -228,6 +258,7 @@ x, y = size - 1, size - 1
 for t in range(size - 9, size - 4):
     for f in range(size - 9, size - 4):
         qr.bits[t][f].is_bridge = True
+        qr.bits[t][f].useable = False
 
 def traversing_blind():
     x, y = qr.traverse_upwards(x, y, 4)
@@ -244,14 +275,14 @@ def traversing_path(size):
     #         cell.mark_cell_active()
     # cell.is_fixed_corner = True
 
-    for i in range(0, 95):
+    for i in range(0, 100):
+        print('IIIII', i)
+        if i > 10:
+            sleep(0.1)
         path, x, y = qr.traverse_path_upward(x, y, 8)
-        print(x, y)
         for a, b in path:
             cell = qr.get_cell(a, b)
             if cell:
-                if cell.x == 21 and cell.y == 26:
-                    set_trace()
                 cell.mark_cell_active()
         cell.is_fixed_corner = True
         qr.show(path, x, y)
