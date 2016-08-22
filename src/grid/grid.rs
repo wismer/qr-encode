@@ -128,21 +128,9 @@ impl QRGrid {
         bit.is_valid()
     }
 
-    fn determine_block_orientation(&self, x: usize, y: usize) -> Orientation {
-        if self.is_empty_bit(x - 1, y) && self.is_empty_bit(x - 2, y) {
-
-        }
-    }
-
     fn get_valid_path(&self, x: usize, y: usize, block_size: usize) -> Option<BitPath> {
         let bit: Bit;
         let mut valid_path: Vec<(usize, usize)> = vec![];
-        for (a, b) in path {
-            if self.is_empty_bit(x, y) {
-                valid_path.push((x, y));
-            }
-        }
-
         let length = valid_path.len();
         match length {
             4 | 8 => Some(BitPath { path: valid_path }),
