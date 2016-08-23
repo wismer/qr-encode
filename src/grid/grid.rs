@@ -23,10 +23,10 @@ enum Orientation {
 }
 
 pub struct Bit {
-    x: usize,
-    y: usize,
+    pub x: usize,
+    pub y: usize,
     // true for 1, false for 0
-    val: bool,
+    pub val: bool,
     section: QRSection
 }
 
@@ -34,7 +34,7 @@ struct Chunk(u8, u8);
 
 pub struct QRGrid {
     size: usize,
-    bits: Vec<Bit>,
+    pub bits: Vec<Bit>,
     format_info: FormatInfo
 }
 
@@ -46,21 +46,61 @@ impl Bit {
             _ => false
         }
     }
+
+    pub fn color(&self) -> [u8; 3] {
+        match self.section {
+            QRSection::None => [255, 255, 255],
+            QRSection::FixedBridge => {
+                if self.x == 6 && self.y % 2 == 0 || self.y == 6 && self.x % 2 == 0 {
+                    [0, 0, 0]
+                } else {
+                    [255, 255, 255]
+                }
+            },
+            QRSection::Fixed => {
+                if self.x == 1 || self.x == 5 || self.x == 49 - 6 || self.x == 47 {
+                    match self.y {
+                        1...5 | 43...47 => [255, 255, 255],
+                        7 => [255, 255, 255],
+                        _ => [0, 0, 0]
+                    }
+                } else if self.y == 1 || self.y == 5 || self.y == 49 - 6 || self.y == 47 {
+                    match self.x {
+                        1...5 | 43...47 => [255, 255, 255],
+                        7 => [255, 255, 255],
+                        _ => [0, 0, 0]
+                    }
+                } else if self.x == 7 || self.y == 7 {
+                    [255, 255, 255]
+                } else {
+                    [0, 0, 0]
+                }
+            },
+            QRSection::Format => [130, 0, 155],
+            _ => [255, 255, 255]
+        }
+    }
 }
 
 fn is_fixed_area(x: usize, y: usize, size: usize) -> bool {
     x <= 7 && (y <= 7 || (size - y) <= 7) || y <= 7 && (size - x) <= 7
 }
 
-fn is_bridge_area(x: usize, y: usize) -> bool {
-    x == 6 && (y >= 8 && y <= 12) || y == 6 && (x >= 8 && x <= 12)
+fn is_bridge_area(x: usize, y: usize, size: usize) -> bool {
+    x == 6 && (y >= 8 && y <= size - 9) || x >= 8 && x <= (size - 9) && y == 6
 }
 
-fn is_format_area(x: usize, y: usize) -> bool {
+fn is_format_area(x: usize, y: usize, size: usize) -> bool {
     if x == 8 {
-        y >= 8 && y <= 12 || y >= 13 && y <= 20
+        match y {
+            0...8 | 42...48 => true,
+            _ => false
+        }
     } else if y == 8 {
-        x >= 8 && x <= 12 || x >= 13 && y <= 20
+        match x {
+            0...8 | 42...48 => true,
+            _ => false
+        }
     } else {
         false
     }
@@ -77,9 +117,9 @@ impl QRGrid {
             let bit: Bit;
             if is_fixed_area(row, col, size) {
                 bit = Bit { x: row, y: col, val: false, section: QRSection::Fixed };
-            } else if is_bridge_area(row, col) {
+            } else if is_bridge_area(row, col, size) {
                 bit = Bit { x: row, y: col, val: false, section: QRSection::FixedBridge };
-            } else if is_format_area(row, col) {
+            } else if is_format_area(row, col, size) {
                 bit = Bit { x: row, y: col, val: false, section: QRSection::Format };
             } else {
                 bit = Bit { x: row, y: col, val: false, section: QRSection::None };
@@ -89,6 +129,18 @@ impl QRGrid {
 
         let format_info = FormatInfo::new(mask, error_correction);
         QRGrid { size: size, bits: bits, format_info: format_info }
+    }
+
+    pub fn get_point_color(&self, x: u32, y: u32) -> [u8; 3] {
+        let row = x;
+        let col = y % 49;
+        let index = row + col;
+        let ref bit: Bit = self.bits[index as usize];
+        if bit.is_valid() {
+            [255, 255, 255]
+        } else {
+            [0, 0, 0]
+        }
     }
 
     pub fn show(&self) {
