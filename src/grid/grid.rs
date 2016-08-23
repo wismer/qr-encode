@@ -11,6 +11,10 @@ enum QRSection {
     None
 }
 
+struct Point<'a> {
+    bit: &'a Bit
+}
+
 struct BitPath {
     path: Vec<(usize, usize)>
 }
@@ -49,7 +53,13 @@ impl Bit {
 
     pub fn color(&self) -> [u8; 3] {
         match self.section {
-            QRSection::None => [255, 255, 255],
+            QRSection::None => {
+                if self.val {
+                    [0, 0, 0]
+                } else {
+                    [255, 255, 255]
+                }
+            },
             QRSection::FixedBridge => {
                 if self.x == 6 && self.y % 2 == 0 || self.y == 6 && self.x % 2 == 0 {
                     [0, 0, 0]
@@ -131,18 +141,6 @@ impl QRGrid {
         QRGrid { size: size, bits: bits, format_info: format_info }
     }
 
-    pub fn get_point_color(&self, x: u32, y: u32) -> [u8; 3] {
-        let row = x;
-        let col = y % 49;
-        let index = row + col;
-        let ref bit: Bit = self.bits[index as usize];
-        if bit.is_valid() {
-            [255, 255, 255]
-        } else {
-            [0, 0, 0]
-        }
-    }
-
     pub fn show(&self) {
         let f = self.format_info.mask_func_factory();
         for n in &self.bits {
@@ -155,38 +153,36 @@ impl QRGrid {
 
     pub fn encode(&mut self, message: String, mode: u8) {
         let mut bits = &mut self.bits;
-        let mut payload: Vec<Chunk> = vec![Chunk(mode, 4)];
         let msg_length = message.len();
-        payload.push(Chunk(msg_length as u8, 8));
-
+        let mut index = 2401;
         for byte in message.into_bytes() {
-            payload.push(Chunk(byte, 8));
-        }
-
-        let mut start_x = self.size - 1;
-        let mut start_y = self.size - 1;
-
-        for b in payload {
-            // I think I need to stick in a direction enum for Chunk
+            let mut i = 7;
+            while i > 0 {
+                let ref mut bit = bits[index - 1];
+                let xbit = byte & (1 << i);
+                bit.val = xbit == 0;
+                i -= 1;
+                index -= 1;
+            }
         }
     }
 
-    fn is_empty_bit(&self, x: usize, y: usize) -> bool {
-        if x < 0 || y < 0 || x >= self.size || y >= self.size {
-            return false
-        }
-
-        let bit = &self.bits[x * (self.size - 1) + y];
-        bit.is_valid()
+    fn point_within_bounds(&self, index: usize) -> bool {
+        index < (self.size * 2) - 1 && index > 0
     }
 
-    fn get_valid_path(&self, x: usize, y: usize, block_size: usize) -> Option<BitPath> {
-        let bit: Bit;
-        let mut valid_path: Vec<(usize, usize)> = vec![];
-        let length = valid_path.len();
-        match length {
-            4 | 8 => Some(BitPath { path: valid_path }),
-            _ => None
+    fn get_possible_paths(&self, index: usize) {
+
+    }
+
+    fn get_point(&self, x: usize, y: usize) -> Option<Point> {
+        if x > (self.size - 1) * 2 || y > (self.size - 1) * 2 {
+            return None
         }
+
+        let index = (x * (self.size - 1)) + y;
+        let ref bit = self.bits[index];
+        let point = Point { bit: bit };
+        Some(point)
     }
 }
