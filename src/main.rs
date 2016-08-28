@@ -16,13 +16,13 @@ fn main() {
     let message = String::from("www.wikipedia.org");
     qr.encode(message, 0b0100);
     let mut img = ImageBuffer::new(49 * 20, 49 * 20);
-
+    let size = 49;
     //Iterate over all pixels in the image
     for bit in qr.bits.iter() {
-        println!("{}", bit.val);
-        let color = bit.color();
-        let i = (bit.x * 20) as u32;
-        let j = (bit.y * 20) as u32;
+        let color = bit.color(size);
+        let (row, col) = bit.coords(&size);
+        let i = (row * 20) as u32;
+        let j = (col * 20) as u32;
         for y in i..(i + 20) {
             for x in j..(j + 20) {
                 img.put_pixel(x, y, Rgb { data: color });

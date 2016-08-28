@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::ops::{Add, Shl, Shr, Sub};
+use grid::bit::Bit;
 
 pub struct Point {
     pub x: usize,
