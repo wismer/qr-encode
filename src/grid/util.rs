@@ -28,27 +28,27 @@ pub fn is_enc_type(row: usize, col: usize, size: usize) -> bool {
     row >= size - 3 && col >= size - 3
 }
 
+pub fn available_paths(row: usize, col: usize, size: usize) -> usize {
+    if row == 0 || col == 0 {
+        return 2usize
+    }
+    let avail_paths: [(usize, usize); 4] = [
+        (row - 1, col),
+        (row + 1, col),
+        (row, col - 1),
+        (row, col + 1)
+    ];
+    let mut count = 4;
+    for path in avail_paths.into_iter() {
+        let (x, y) = *path;
+        if is_format_area(x, y, size) || is_bridge_area(x, y, size) || is_fixed_area(x, y, size) {
+            count -= 1;
+        }
+    }
+    count
+}
 
 // message length payloads vary, it looks like and may take up to 16 bits. Assume 8 bits for now.
 pub fn is_msg_len(row: usize, col: usize, size: usize) -> bool {
     row >= size - 7 && row < size - 3 && col >= size - 3
-}
-
-fn encode_chunk(index: &mut usize, byte: u8, bit_count: isize, bits: &[Bit]) {
-    while i >= 0 {
-        let ref mut bit = bits[index];
-        bit.filled = true;
-        bit.val = (byte & (1 << shift)) == 0;
-    }
-}
-
-pub fn encode(message: String, mode: u8, size: usize, qr: QRGrid) {
-    let msg_length = message.len();
-    let mut index = (size * size) - 1;
-    let mut chunked_bits = qr.chunk_bits(index);
-    encode_chunk(index, mode, 3, chunked_bits);
-
-    for byte in message.into_bytes() {
-        encode_chunk(index, byte, 7, &qr.bits);
-    }
 }

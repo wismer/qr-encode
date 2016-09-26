@@ -4,6 +4,7 @@ use grid::traverse::Point;
 use grid::bit::{Bit};
 use grid::util::*;
 
+
 pub enum QRSection {
     Fixed,
     FixedBridge,
@@ -65,96 +66,159 @@ impl Routes {
     }
 }
 
+pub enum Cell {
+    Fixed(usize, usize),
+    Format(u8),
+    Content(Point)
+}
+
+enum CellArea {
+
+}
+
+
+pub fn create_grid(size: usize, mask: u8) -> Vec<Cell> {
+    let mut cells: Vec<Cell> = vec![];
+    for i in 0..(size * size) {
+        println!("{} IM SO FUCKING TIRED", cells.len());
+        let row = i / size;
+        let col = i % size;
+
+        if is_fixed_area(row, col, size) {
+            cells.push(Cell::Fixed(row, col));
+        } else if is_bridge_area(row, col, size) {
+            cells.push(Cell::Fixed(row, col));
+        } else if is_format_area(row, col, size) {
+            cells.push(Cell::Format(mask));
+        } else {
+            let num_paths = available_paths(row, col, size);
+            let point = Point {
+                x: row,
+                y: col,
+                is_edge: num_paths == 3,
+                is_corner: num_paths == 2
+            };
+            cells.push(Cell::Content(point))
+        }
+    }
+    cells
+}
+
+pub fn encode_byte(byte: u8, cells: &mut Vec<Cell>, size: usize) {
+    let mut i = 8;
+    let mut index = size - 1;
+    while i >= 0 {
+        let cell = get_current_cell(index, cells);
+        {
+            let xbit = byte & (1 << i);
+            if xbit == 1 {
+
+            } else {
+
+            }
+            i -= 1;
+        }
+    }
+}
+
+
+pub fn get_current_cell(idx: usize, cells: &Vec<Cell>) -> Option<&Point> {
+    match *cells.get(idx).unwrap() {
+        Cell::Content(ref point) => Some(point),
+        _ => None
+    }
+}
+
 impl QRGrid {
-    pub fn new(size: usize, mask: u8, error_correction: ErrorCorrectionLevel) -> QRGrid {
-        let mut bits: Vec<Bit> = vec![];
-        for i in 0..(size * size) {
-            let row = i / size;
-            let col = i % size;
-            let bit: Bit;
-            if is_fixed_area(row, col, size) {
-                bit = Bit { idx: i, val: false, filled: true, section: QRSection::Fixed };
-            } else if is_bridge_area(row, col, size) {
-                bit = Bit { idx: i, val: false, filled: true, section: QRSection::FixedBridge };
-            } else if is_format_area(row, col, size) {
-                bit = Bit { idx: i, val: false, filled: false, section: QRSection::Format };
-            } else {
-                bit = Bit { idx: i, val: false, filled: false, section: QRSection::ContentBody };
-            }
-            bits.push(bit);
-        }
-
-        let format_info = FormatInfo::new(mask, error_correction);
-        QRGrid { size: size, bits: bits, format_info: format_info, index: (size * size) - 1 }
-    }
-
-    fn get(&self, next: isize) -> Option<usize> {
-        let index = next + self.index as isize;
-        if index >= (self.size * self.size) as isize || index < 0 {
-            return None
-        }
-
-        let ref bit = self.bits[index as usize];
-        if bit.is_valid() {
-            Some(bit.idx)
-         } else {
-            None
-        }
-    }
-
-    fn get_next_valid_path(&mut self) {
-        let paths = self.get_paths();
-        self.index = paths.next();
-    }
-
-    fn encode_chunk(&mut self, byte: u8, bit_count: isize) {
-        let mut x = 0;
-        let mut y = 0;
-        let mut i = bit_count;
-        let mut row_modifier = self.size;
-        let mut rotate = false;
-        while i >= 0 {
-            let ref mut bit = self.bits[self.index];
-
-            if !bit.is_valid() {
-                break;
-            } else {
-                println!("{}, {}", self.index, "WHAT");
-            }
-
-            {
-                let xbit = byte & (1 << i);
-                let mask_bit = self.format_info.mask_func_factory();
-                let (x, y) = bit.coords(&self.size);
-                bit.val = mask_bit(x, y, xbit == 0);
-                bit.filled = true;
-                i -= 1;
-            }
-            self.get_next_valid_path();
-        }
-    }
-
-
-    fn get_paths<'a>(&self) -> Routes {
-        let size = self.size as isize;
-        Routes {
-            leftward: self.get(-1),
-            rightward: self.get(1),
-            backward: self.get(size),
-            forward: self.get(size * -1),
-            upper_right: self.get((size * -1) + 1),
-            upper_left: self.get((size * -1) - 1),
-            lower_left: self.get((size * 1) - 1),
-            lower_right: self.get((size * 1) + 1)
-        }
-    }
-
-    fn point_available(&self, point: usize) -> bool {
-        let ref bit = self.bits[point];
-        bit.is_valid()
-    }
-
-    fn point_within_bounds(&self, point: usize) -> bool {
-        point < (self.size * 2) - 1 && point > 0
-    }
+    // pub fn new(size: usize, mask: u8, error_correction: ErrorCorrectionLevel) -> QRGrid {
+    //     let mut bits: Vec<Bit> = vec![];
+    //     for i in 0..(size * size) {
+    //         let row = i / size;
+    //         let col = i % size;
+    //         let bit: Bit;
+    //         if is_fixed_area(row, col, size) {
+    //             bit = Bit { idx: i, val: false, filled: true, section: QRSection::Fixed };
+    //         } else if is_bridge_area(row, col, size) {
+    //             bit = Bit { idx: i, val: false, filled: true, section: QRSection::FixedBridge };
+    //         } else if is_format_area(row, col, size) {
+    //             bit = Bit { idx: i, val: false, filled: false, section: QRSection::Format };
+    //         } else {
+    //             bit = Bit { idx: i, val: false, filled: false, section: QRSection::ContentBody };
+    //         }
+    //         bits.push(bit);
+    //     }
+    //
+    //     let format_info = FormatInfo::new(mask, error_correction);
+    //     QRGrid { size: size, bits: bits, format_info: format_info, index: (size * size) - 1 }
+    // }
+    //
+    // fn get(&self, next: isize) -> Option<usize> {
+    //     let index = next + self.index as isize;
+    //     if index >= (self.size * self.size) as isize || index < 0 {
+    //         return None
+    //     }
+    //
+    //     let ref bit = self.bits[index as usize];
+    //     if bit.is_valid() {
+    //         Some(bit.idx)
+    //      } else {
+    //         None
+    //     }
+    // }
+    //
+    // fn get_next_valid_path(&mut self) {
+    //     let paths = self.get_paths();
+    //     self.index = paths.next();
+    // }
+    //
+    // fn encode_chunk(&mut self, byte: u8, bit_count: isize) {
+    //     let mut x = 0;
+    //     let mut y = 0;
+    //     let mut i = bit_count;
+    //     let mut row_modifier = self.size;
+    //     let mut rotate = false;
+    //     while i >= 0 {
+    //         let ref mut bit = self.bits[self.index];
+    //
+    //         if !bit.is_valid() {
+    //             break;
+    //         } else {
+    //             println!("{}, {}", self.index, "WHAT");
+    //         }
+    //
+    //         {
+    //             let xbit = byte & (1 << i);
+    //             let mask_bit = self.format_info.mask_func_factory();
+    //             let (x, y) = bit.coords(&self.size);
+    //             bit.val = mask_bit(x, y, xbit == 0);
+    //             bit.filled = true;
+    //             i -= 1;
+    //         }
+    //         self.get_next_valid_path();
+    //     }
+    // }
+    //
+    //
+    // fn get_paths<'a>(&self) -> Routes {
+    //     let size = self.size as isize;
+    //     Routes {
+    //         leftward: self.get(-1),
+    //         rightward: self.get(1),
+    //         backward: self.get(size),
+    //         forward: self.get(size * -1),
+    //         upper_right: self.get((size * -1) + 1),
+    //         upper_left: self.get((size * -1) - 1),
+    //         lower_left: self.get((size * 1) - 1),
+    //         lower_right: self.get((size * 1) + 1)
+    //     }
+    // }
+    //
+    // fn point_available(&self, point: usize) -> bool {
+    //     let ref bit = self.bits[point];
+    //     bit.is_valid()
+    // }
+    //
+    // fn point_within_bounds(&self, point: usize) -> bool {
+    //     point < (self.size * 2) - 1 && point > 0
+    // }
 }
