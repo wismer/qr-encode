@@ -66,55 +66,132 @@ impl Routes {
     }
 }
 
-pub enum Cell {
-    Fixed(usize, usize),
-    Format(u8),
-    Content(Point)
+// pub enum Cell {
+//     Fixed(usize, usize),
+//     Format(u8),
+//     Content(Point)
+// }
+
+pub struct Cell {
+    is_fixed: bool,
+    is_bridge: bool,
+    is_empty: bool,
+    is_bit: bool,
+    is_filled: bool,
+    x: usize,
+    y: usize,
 }
 
-enum CellArea {
 
+pub struct Row {
+    cells: Vec<Cell>
+}
+
+pub struct Grid {
+    rows: Vec<Row>
 }
 
 
-pub fn create_grid(size: usize, mask: u8) -> Vec<Cell> {
-    let mut cells: Vec<Cell> = vec![];
-    for i in 0..(size * size) {
-        println!("{} IM SO FUCKING TIRED", cells.len());
-        let row = i / size;
-        let col = i % size;
+impl Grid {
+    fn push(&mut self, x: usize, y: usize, size: usize) {
+        let mut make_row = false;
+        let row_count = self.rows.len();
+        // grab the last row in the vector
+        match self.rows.last_mut() {
+            // if there exists a row already...
+            Some(row) => {
+                // check to see if it is not full (being 49 for now)
+                if row.cells.len() < 49 {
+                    // if it can still accept cells, then create one with the given coordinate
+                    let cell = create_cell(x, y, size);
+                    // and append it to that particular row being built
+                    row.cells.push(cell);
+                } else {
+                    // if the current row is full, then a new one needs to be created
+                    // and then bound to `new_row`
+                    make_row = row_count <= 49;
+                }
+            },
+            None => {
+                make_row = true;
+                // there are no rows, so I have to make one!
+            }
+        }
 
-        if is_fixed_area(row, col, size) {
-            cells.push(Cell::Fixed(row, col));
-        } else if is_bridge_area(row, col, size) {
-            cells.push(Cell::Fixed(row, col));
-        } else if is_format_area(row, col, size) {
-            cells.push(Cell::Format(mask));
-        } else {
-            let num_paths = available_paths(row, col, size);
-            let point = Point {
-                x: row,
-                y: col,
-                is_edge: num_paths == 3,
-                is_corner: num_paths == 2
-            };
-            cells.push(Cell::Content(point))
+        if make_row && row_count < 49 {
+            self.rows.push(Row { cells: Vec::new() });
+        }
+
+        println!("size: {}", self.rows.len());
+    }
+
+    pub fn size_of_grid(&self) -> usize {
+
+        for row in &self.rows {
+            println!("{}, actual length: {}", row.cells.len() == 49, row.cells.len());
+        }
+        self.rows.len()
+    }
+}
+
+fn create_cell(x: usize, y: usize, size: usize) -> Cell {
+    if is_format_area(x, y, size) {
+        Cell {
+            is_fixed: true,
+            is_bridge: false,
+            is_empty: true,
+            is_bit: false,
+            is_filled: false,
+            x: y,
+            y: x
+        }
+    } else if is_fixed_area(x, y, size) {
+        Cell {
+            is_fixed: true,
+            is_bridge: is_bridge_area(x, y, size),
+            is_empty: true,
+            is_bit: false,
+            is_filled: false,
+            x: y,
+            y: x
+        }
+    } else {
+        Cell {
+            is_fixed: true,
+            is_bridge: false,
+            is_empty: true,
+            is_bit: false,
+            is_filled: false,
+            x: y,
+            y: x
         }
     }
-    cells
+}
+
+pub fn create_grid(size: usize, mask: u8, qr_version: u8) -> Grid {
+    let cells: Vec<Cell> = Vec::new();
+    let row = Row { cells: cells };
+    let rows: Vec<Row> = Vec::new();
+    let mut grid = Grid { rows: rows };
+    for i in 0..(size * size) {
+        let x = i / size;
+        let y = i % size;
+        println!("x={} y={}", x, y);
+        grid.push(x, y, size);
+    }
+    grid
 }
 
 pub fn encode_byte(byte: u8, cells: &mut Vec<Cell>, size: usize) {
     let mut i = 8;
     let mut index = size - 1;
     while i >= 0 {
-        let cell = get_current_cell(index, cells);
+        // let ref mut point = get_current_cell(index, cells).unwrap();
+        let cell = cells.get_mut(index).unwrap();
         {
             let xbit = byte & (1 << i);
             if xbit == 1 {
-
-            } else {
-
+                // cell = Cell::Content(Point { x: 10, y: 10, is_bit: true, is_corner: false, is_edge: false });
             }
             i -= 1;
         }
@@ -122,103 +199,9 @@ pub fn encode_byte(byte: u8, cells: &mut Vec<Cell>, size: usize) {
 }
 
 
-pub fn get_current_cell(idx: usize, cells: &Vec<Cell>) -> Option<&Point> {
-    match *cells.get(idx).unwrap() {
-        Cell::Content(ref point) => Some(point),
+pub fn get_current_cell(idx: usize, cells: &mut Vec<Cell>) -> Option<&Point> {
+    match *cells.get_mut(idx).unwrap() {
+        // Cell::Content(ref mut point) => Some(point),
         _ => None
     }
-}
-
-impl QRGrid {
-    // pub fn new(size: usize, mask: u8, error_correction: ErrorCorrectionLevel) -> QRGrid {
-    //     let mut bits: Vec<Bit> = vec![];
-    //     for i in 0..(size * size) {
-    //         let row = i / size;
-    //         let col = i % size;
-    //         let bit: Bit;
-    //         if is_fixed_area(row, col, size) {
-    //             bit = Bit { idx: i, val: false, filled: true, section: QRSection::Fixed };
-    //         } else if is_bridge_area(row, col, size) {
-    //             bit = Bit { idx: i, val: false, filled: true, section: QRSection::FixedBridge };
-    //         } else if is_format_area(row, col, size) {
-    //             bit = Bit { idx: i, val: false, filled: false, section: QRSection::Format };
-    //         } else {
-    //             bit = Bit { idx: i, val: false, filled: false, section: QRSection::ContentBody };
-    //         }
-    //         bits.push(bit);
-    //     }
-    //
-    //     let format_info = FormatInfo::new(mask, error_correction);
-    //     QRGrid { size: size, bits: bits, format_info: format_info, index: (size * size) - 1 }
-    // }
-    //
-    // fn get(&self, next: isize) -> Option<usize> {
-    //     let index = next + self.index as isize;
-    //     if index >= (self.size * self.size) as isize || index < 0 {
-    //         return None
-    //     }
-    //
-    //     let ref bit = self.bits[index as usize];
-    //     if bit.is_valid() {
-    //         Some(bit.idx)
-    //      } else {
-    //         None
-    //     }
-    // }
-    //
-    // fn get_next_valid_path(&mut self) {
-    //     let paths = self.get_paths();
-    //     self.index = paths.next();
-    // }
-    //
-    // fn encode_chunk(&mut self, byte: u8, bit_count: isize) {
-    //     let mut x = 0;
-    //     let mut y = 0;
-    //     let mut i = bit_count;
-    //     let mut row_modifier = self.size;
-    //     let mut rotate = false;
-    //     while i >= 0 {
-    //         let ref mut bit = self.bits[self.index];
-    //
-    //         if !bit.is_valid() {
-    //             break;
-    //         } else {
-    //             println!("{}, {}", self.index, "WHAT");
-    //         }
-    //
-    //         {
-    //             let xbit = byte & (1 << i);
-    //             let mask_bit = self.format_info.mask_func_factory();
-    //             let (x, y) = bit.coords(&self.size);
-    //             bit.val = mask_bit(x, y, xbit == 0);
-    //             bit.filled = true;
-    //             i -= 1;
-    //         }
-    //         self.get_next_valid_path();
-    //     }
-    // }
-    //
-    //
-    // fn get_paths<'a>(&self) -> Routes {
-    //     let size = self.size as isize;
-    //     Routes {
-    //         leftward: self.get(-1),
-    //         rightward: self.get(1),
-    //         backward: self.get(size),
-    //         forward: self.get(size * -1),
-    //         upper_right: self.get((size * -1) + 1),
-    //         upper_left: self.get((size * -1) - 1),
-    //         lower_left: self.get((size * 1) - 1),
-    //         lower_right: self.get((size * 1) + 1)
-    //     }
-    // }
-    //
-    // fn point_available(&self, point: usize) -> bool {
-    //     let ref bit = self.bits[point];
-    //     bit.is_valid()
-    // }
-    //
-    // fn point_within_bounds(&self, point: usize) -> bool {
-    //     point < (self.size * 2) - 1 && point > 0
-    // }
 }

@@ -27,47 +27,50 @@ fn draw_pixels(x: usize, y: usize) -> Vec<(u32, u32)> {
 
 
 fn main() {
-    let mut qr = create_grid(49, 2);
+    let qr_version = 1;
+    let mut qr = create_grid(49, 2, qr_version);
     let message = String::from("www.wikipedia.org");
     let mut img = ImageBuffer::new(49 * 20, 49 * 20);
     for byte in message.into_bytes() {
-        encode_byte(byte, &mut qr, 49 * 49);
+        // encode_byte(byte, &mut qr, 49 * 49);
     }
     let size = 49;
+    let size_of_grid = qr.size_of_grid();
+    println!("{}", size_of_grid);
     //Iterate over all pixels in the image
     // [0, 0, 0] == black
     // [255, 255, 255] == white
-    for cell in qr {
-        match cell {
-            Cell::Fixed(x, y) => {
-                let pixels = draw_pixels(x, y);
-                for pixel in pixels {
-                    let (x, y) = pixel;
-                    // println!("({x}, {y})", x=x, y=y);
-                    img.put_pixel(x, y, Rgb { data: [0, 0, 0] });
-                }
-            },
-            Cell::Content(point) => {
-                let color: [u8; 3];
-                if point.is_edge {
-                    color = [120, 30, 50];
-                } else if point.is_corner {
-                    color = [30, 120, 50];
-                } else {
-                    color = [255, 255, 255];
-                }
-                let pixels = draw_pixels(point.x, point.y);
-                for pixel in pixels {
-                    let (x, y) = pixel;
-                    // println!("({x}, {y})", x=x, y=y);
-                    img.put_pixel(x, y, Rgb { data: color });
-                }
-            },
-            _ => {}
-        };
+    // for cell in qr {
+        // match cell {
+        //     Cell::Fixed(x, y) => {
+        //         let pixels = draw_pixels(x, y);
+        //         for pixel in pixels {
+        //             let (x, y) = pixel;
+        //             // println!("({x}, {y})", x=x, y=y);
+        //             img.put_pixel(x, y, Rgb { data: [0, 0, 0] });
+        //         }
+        //     },
+        //     Cell::Content(point) => {
+        //         let color: [u8; 3];
+        //         if point.is_edge {
+        //             color = [120, 30, 50];
+        //         } else if point.is_corner {
+        //             color = [30, 120, 50];
+        //         } else {
+        //             color = [255, 255, 255];
+        //         }
+        //         let pixels = draw_pixels(point.x, point.y);
+        //         for pixel in pixels {
+        //             let (x, y) = pixel;
+        //             // println!("({x}, {y})", x=x, y=y);
+        //             img.put_pixel(x, y, Rgb { data: color });
+        //         }
+        //     },
+        //     _ => {}
+        // };
 
 
-    }
+    // }
     // for cell in qr.bits.iter() {
         // let ref point = get_point(cell);
         // let neighbors = get_neighboring_points

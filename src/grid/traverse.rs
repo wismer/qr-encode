@@ -6,7 +6,8 @@ pub struct Point {
     pub x: usize,
     pub y: usize,
     pub is_edge: bool,
-    pub is_corner: bool
+    pub is_corner: bool,
+    pub is_bit: bool
 }
 
 // impl Shl<usize> for Point {
