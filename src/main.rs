@@ -12,13 +12,47 @@ use image::{
     Pixel
 };
 
-fn draw_pixels(x: usize, y: usize) -> Vec<(u32, u32)> {
-    let i = (x * 20) as u32;
-    let j = (y * 20) as u32;
-    let mut pixels: Vec<(u32, u32)> = vec![];
+enum ColorSet {
+    Border(Color),
+    CellFixed(Color),
+    CellFree(Color)
+}
+
+struct Color {
+    r: u8,
+    g: u8,
+    b: u8
+}
+
+fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
+    let i = (cell.x * 20) as u32;
+    let j = (cell.y * 20) as u32;
+    let mut pixels: Vec<(u32, u32, Color)> = vec![];
+    let mut x_border = true;
+    let mut y_border = true;
     for col in i..(i + 20) {
+        x_border = match col % 20 {
+            2...18 => false,
+            _ => true
+        };
         for row in j..(j + 20) {
-            pixels.push((col, row))
+            y_border = match row % 20 {
+                2...18 => false,
+                _ => true
+            };
+            let color: Color;
+            if x_border || y_border {
+                color = Color { r: 125, b: 125, g: 125 };
+            } else if cell.is_fixed || cell.is_bit {
+                color = Color { r: 0, b: 0, g: 0 };
+            } else if cell.is_bridge {
+                color = Color { r: 200, b: 100, g: 10 };
+            } else if cell.is_format {
+                color = Color { r: 10, b: 200, g: 100 };
+            } else {
+                color = Color { r: 255, b: 255, g: 255 };
+            }
+            pixels.push((col, row, color));
         }
     }
 
@@ -26,64 +60,28 @@ fn draw_pixels(x: usize, y: usize) -> Vec<(u32, u32)> {
 }
 
 
+
+
 fn main() {
     let qr_version = 1;
     let mut qr = create_grid(49, 2, qr_version);
-    let message = String::from("www.wikipedia.org");
+    let mut size = 49 * 49;
+    let message = String::from("www.wikipedia.org - here you can find junk and stuff and whatever");
     let mut img = ImageBuffer::new(49 * 20, 49 * 20);
+    let mut starting_point = size - 1;
     for byte in message.into_bytes() {
-        // encode_byte(byte, &mut qr, 49 * 49);
+        encode_byte(byte, &mut qr, &mut starting_point);
     }
     let size = 49;
-    let size_of_grid = qr.size_of_grid();
-    println!("{}", size_of_grid);
-    //Iterate over all pixels in the image
-    // [0, 0, 0] == black
-    // [255, 255, 255] == white
-    // for cell in qr {
-        // match cell {
-        //     Cell::Fixed(x, y) => {
-        //         let pixels = draw_pixels(x, y);
-        //         for pixel in pixels {
-        //             let (x, y) = pixel;
-        //             // println!("({x}, {y})", x=x, y=y);
-        //             img.put_pixel(x, y, Rgb { data: [0, 0, 0] });
-        //         }
-        //     },
-        //     Cell::Content(point) => {
-        //         let color: [u8; 3];
-        //         if point.is_edge {
-        //             color = [120, 30, 50];
-        //         } else if point.is_corner {
-        //             color = [30, 120, 50];
-        //         } else {
-        //             color = [255, 255, 255];
-        //         }
-        //         let pixels = draw_pixels(point.x, point.y);
-        //         for pixel in pixels {
-        //             let (x, y) = pixel;
-        //             // println!("({x}, {y})", x=x, y=y);
-        //             img.put_pixel(x, y, Rgb { data: color });
-        //         }
-        //     },
-        //     _ => {}
-        // };
-
-
-    // }
-    // for cell in qr.bits.iter() {
-        // let ref point = get_point(cell);
-        // let neighbors = get_neighboring_points
-        // let row = point.x;
-        // let col = point.y;
-        // let i = (row * 20) as u32;
-        // let j = (col * 20) as u32;
-        // for y in i..(i + 20) {
-        //     for x in j..(j + 20) {
-        //         img.put_pixel(x, y, Rgb { data: point.color });
-        //     }
-        // }
-    // }
+    for row in qr.rows {
+        for cell in row.cells {
+            for pixel in get_pixel_points(&cell) {
+                let (x, y, color) = pixel;
+                let rgb = Rgb { data: [color.r, color.g, color.b] };
+                img.put_pixel(x, y, rgb);
+            }
+        }
+    }
 
     let ref mut fout = File::create(&Path::new("qr.png")).unwrap();
     let _ = image::ImageRgb8(img).save(fout, image::PNG);

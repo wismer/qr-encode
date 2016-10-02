@@ -66,33 +66,51 @@ impl Routes {
     }
 }
 
-// pub enum Cell {
-//     Fixed(usize, usize),
-//     Format(u8),
-//     Content(Point)
-// }
 
 pub struct Cell {
-    is_fixed: bool,
-    is_bridge: bool,
-    is_empty: bool,
-    is_bit: bool,
-    is_filled: bool,
-    x: usize,
-    y: usize,
+    pub is_fixed: bool,
+    pub is_bridge: bool,
+    pub is_empty: bool,
+    pub is_bit: bool,
+    pub is_filled: bool,
+    pub is_format: bool,
+    pub x: usize,
+    pub y: usize,
 }
 
 
 pub struct Row {
-    cells: Vec<Cell>
+    pub cells: Vec<Cell>
 }
 
 pub struct Grid {
-    rows: Vec<Row>
+    pub rows: Vec<Row>
 }
 
 
+fn add_point(points: &mut Vec<usize>, point: usize) {
+
+}
+
 impl Grid {
+    fn set_cell(&mut self, index: usize, is_bit: bool) -> usize {
+        let (x, y) = ((index / 49), index % 49);
+        let mut row = self.rows.get_mut(x).unwrap();
+        let mut cell = row.cells.get_mut(y).unwrap();
+        cell.is_bit = is_bit;
+        1
+
+    }
+
+    fn get_neighboring_cells(&self, index: usize) -> Vec<Option<usize>> {
+        let mut points: Vec<usize> = vec![];
+        for i in 1...5 {
+            match i {
+                1 => add_point()
+            }
+        }
+    }
+
     fn push(&mut self, x: usize, y: usize, size: usize) {
         let mut make_row = false;
         let row_count = self.rows.len();
@@ -109,7 +127,7 @@ impl Grid {
                 } else {
                     // if the current row is full, then a new one needs to be created
                     // and then bound to `new_row`
-                    make_row = row_count <= 49;
+                    make_row = row_count < 49;
                 }
             },
             None => {
@@ -119,52 +137,36 @@ impl Grid {
         }
 
         if make_row && row_count < 49 {
-            self.rows.push(Row { cells: Vec::new() });
+            let mut row = Row { cells: Vec::new() };
+            let cell = create_cell(x, y, size);
+            row.cells.push(cell);
+            self.rows.push(row);
         }
-
-        println!("size: {}", self.rows.len());
     }
 
-    pub fn size_of_grid(&self) -> usize {
+    // PUBLIC
 
+    pub fn size_of_grid(&self) -> usize {
+        let mut x = 1;
+        let mut total = 0;
         for row in &self.rows {
-            println!("{}, actual length: {}", row.cells.len() == 49, row.cells.len());
+            x += 1;
+            total += row.cells.len();
         }
         self.rows.len()
     }
 }
 
 fn create_cell(x: usize, y: usize, size: usize) -> Cell {
-    if is_format_area(x, y, size) {
-        Cell {
-            is_fixed: true,
-            is_bridge: false,
-            is_empty: true,
-            is_bit: false,
-            is_filled: false,
-            x: y,
-            y: x
-        }
-    } else if is_fixed_area(x, y, size) {
-        Cell {
-            is_fixed: true,
-            is_bridge: is_bridge_area(x, y, size),
-            is_empty: true,
-            is_bit: false,
-            is_filled: false,
-            x: y,
-            y: x
-        }
-    } else {
-        Cell {
-            is_fixed: true,
-            is_bridge: false,
-            is_empty: true,
-            is_bit: false,
-            is_filled: false,
-            x: y,
-            y: x
-        }
+    Cell {
+        is_fixed: is_fixed_area(x, y, size - 1),
+        is_bridge: is_bridge_area(x, y, size - 1),
+        is_empty: true,
+        is_bit: false,
+        is_filled: false,
+        is_format: is_format_area(x, y, size - 1),
+        x: y,
+        y: x
     }
 }
 
@@ -172,28 +174,26 @@ pub fn create_grid(size: usize, mask: u8, qr_version: u8) -> Grid {
     let cells: Vec<Cell> = Vec::new();
     let row = Row { cells: cells };
     let rows: Vec<Row> = Vec::new();
+    let max = (size * size);
     let mut grid = Grid { rows: rows };
-    for i in 0..(size * size) {
+    for i in 0..max {
         let x = i / size;
         let y = i % size;
-        println!("x={} y={}", x, y);
         grid.push(x, y, size);
     }
     grid
 }
 
-pub fn encode_byte(byte: u8, cells: &mut Vec<Cell>, size: usize) {
-    let mut i = 8;
-    let mut index = size - 1;
+pub fn encode_byte(byte: u8, grid: &mut Grid, index: &mut usize) {
+    let mut i = 7;
     while i >= 0 {
-        // let ref mut point = get_current_cell(index, cells).unwrap();
-        let cell = cells.get_mut(index).unwrap();
         {
             let xbit = byte & (1 << i);
-            if xbit == 1 {
-                // cell = Cell::Content(Point { x: 10, y: 10, is_bit: true, is_corner: false, is_edge: false });
-            }
+            grid.set_cell(*index, xbit == 0);
+            // index -= pick_next_index(index);
             i -= 1;
+
+            *index -= 1;
         }
     }
 }
