@@ -40,16 +40,23 @@ fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
                 _ => true
             };
             let color: Color;
+            let shader = match cell.paths {
+                0 => 30,
+                1 => 45,
+                3 => 90,
+                4 => 120,
+                _ => 0
+            };
             if x_border || y_border {
                 color = Color { r: 125, b: 125, g: 125 };
             } else if cell.is_fixed || cell.is_bit {
-                color = Color { r: 0, b: 0, g: 0 };
+                color = Color { r: 0, b: 0, g: 0 + shader };
             } else if cell.is_bridge {
-                color = Color { r: 200, b: 100, g: 10 };
+                color = Color { r: 200, b: 100, g: 10 + shader };
             } else if cell.is_format {
-                color = Color { r: 10, b: 200, g: 100 };
+                color = Color { r: 10, b: 200, g: 100 + shader };
             } else {
-                color = Color { r: 255, b: 255, g: 255 };
+                color = Color { r: 255 - shader, b: 255 - shader, g: 255 - shader };
             }
             pixels.push((col, row, color));
         }
@@ -68,6 +75,9 @@ fn main() {
     let message = String::from("www.wikipedia.org - here you can find junk and stuff and whatever");
     let mut img = ImageBuffer::new(49 * 20, 49 * 20);
     let mut starting_point = size - 1;
+    for i in 0..(size - 1) {
+        qr.get_neighboring_cells(i);
+    }
     for byte in message.into_bytes() {
         encode_byte(byte, &mut qr, &mut starting_point);
     }

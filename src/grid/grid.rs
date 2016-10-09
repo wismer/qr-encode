@@ -76,8 +76,14 @@ pub struct Cell {
     pub is_format: bool,
     pub x: usize,
     pub y: usize,
+    pub paths: usize
 }
 
+impl Cell {
+    pub fn is_free(&self) -> bool {
+        !self.is_fixed && self.is_empty && !self.is_format && !self.is_bridge
+    }
+}
 
 pub struct Row {
     pub cells: Vec<Cell>
@@ -89,19 +95,30 @@ pub struct Grid {
 
 
 impl Grid {
-    fn set_cell(&mut self, index: usize, is_bit: bool) -> usize {
+    fn set_cell(&mut self, index: usize, is_bit: bool)  {
         let (x, y) = ((index / 49), index % 49);
         let mut row = self.rows.get_mut(x).unwrap();
         let mut cell = row.cells.get_mut(y).unwrap();
         cell.is_bit = is_bit;
-        1
-
     }
 
-    fn get_neighboring_cells(&self, index: usize) {
+    fn set_number_pathways_for_cell(&mut self, x: usize, y: usize, count: usize) {
+        match self.rows.get_mut(x) {
+            Some(row) => {
+                match row.cells.get_mut(y) {
+                    Some(cell) => cell.paths += count,
+                    None => {}
+                }
+            },
+            None => {}
+        }
+    }
+
+    pub fn get_neighboring_cells(&mut self, index: usize) {
         let point: Coord = Coord { x: index / 49, y: index % 49 };
         let size = 49 * 49;
         let shift_operators = "< > - +";
+        let mut pathways_for_point = 0;
         for c in shift_operators.chars() {
             let pt: Option<(usize, usize)> = match c {
                 '>' => point << 1,
@@ -111,11 +128,31 @@ impl Grid {
                  _  => None
             };
 
+
+
             if pt.is_some() {
                 let (x, y) = pt.unwrap();
                 println!("X: {}, Y: {}", x, y);
+
+                let row = self.rows.get(x);
+                match row {
+                    Some(row) => {
+                        let cell = row.cells.get(y);
+                        match cell {
+                            Some(cell) => {
+                                if cell.is_free() {
+                                    pathways_for_point += 1;
+                                }
+                            },
+                            None => {}
+                        }
+                    },
+                    None => {}
+                }
             }
         }
+
+        self.set_number_pathways_for_cell(point.x, point.y, pathways_for_point);
     }
 
     fn push(&mut self, x: usize, y: usize, size: usize) {
@@ -173,7 +210,8 @@ fn create_cell(x: usize, y: usize, size: usize) -> Cell {
         is_filled: false,
         is_format: is_format_area(x, y, size - 1),
         x: y,
-        y: x
+        y: x,
+        paths: 0
     }
 }
 
@@ -190,13 +228,16 @@ pub fn create_grid(size: usize, mask: u8, qr_version: u8) -> Grid {
     }
     grid
 }
+//
+// fn update_adjacent_cells(grid: &mut Grid, current_cell: &Cell) -> Cell {
+//
+// }
 
 pub fn encode_byte(byte: u8, grid: &mut Grid, index: &mut usize) {
     let mut i = 7;
     while i >= 0 {
         {
             let xbit = byte & (1 << i);
-            grid.get_neighboring_cells(10);
             grid.set_cell(*index, xbit == 0);
             // index -= pick_next_index(index);
             i -= 1;
