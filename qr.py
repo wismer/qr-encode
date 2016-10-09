@@ -174,6 +174,7 @@ class QR(object):
         return point - 1
 
     def traverse_path(self, x, y, block_size, path=None):
+        sleep(0.5)
         self.path = []
         while block_size > len(self.path):
             point = Point(x, y)

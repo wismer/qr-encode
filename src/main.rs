@@ -2,7 +2,6 @@ extern crate image;
 pub mod grid;
 use grid::message::{ErrorCorrectionLevel};
 use grid::grid::{create_grid, encode_byte, Cell};
-use grid::traverse::{Point};
 use std::fs::File;
 use std::path::Path;
 use image::{

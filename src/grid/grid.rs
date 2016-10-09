@@ -1,6 +1,6 @@
 use grid::message::{FormatInfo, ErrorCorrectionLevel};
 use std::collections::HashMap;
-use grid::traverse::Point;
+use grid::traverse::Coord;
 use grid::bit::{Bit};
 use grid::util::*;
 
@@ -88,10 +88,6 @@ pub struct Grid {
 }
 
 
-fn add_point(points: &mut Vec<usize>, point: usize) {
-
-}
-
 impl Grid {
     fn set_cell(&mut self, index: usize, is_bit: bool) -> usize {
         let (x, y) = ((index / 49), index % 49);
@@ -102,11 +98,22 @@ impl Grid {
 
     }
 
-    fn get_neighboring_cells(&self, index: usize) -> Vec<Option<usize>> {
-        let mut points: Vec<usize> = vec![];
-        for i in 1...5 {
-            match i {
-                1 => add_point()
+    fn get_neighboring_cells(&self, index: usize) {
+        let point: Coord = Coord { x: index / 49, y: index % 49 };
+        let size = 49 * 49;
+        let shift_operators = "< > - +";
+        for c in shift_operators.chars() {
+            let pt: Option<(usize, usize)> = match c {
+                '>' => point << 1,
+                '<' => point >> 1,
+                '+' => point +  1,
+                '-' => point -  1,
+                 _  => None
+            };
+
+            if pt.is_some() {
+                let (x, y) = pt.unwrap();
+                println!("X: {}, Y: {}", x, y);
             }
         }
     }
@@ -189,19 +196,12 @@ pub fn encode_byte(byte: u8, grid: &mut Grid, index: &mut usize) {
     while i >= 0 {
         {
             let xbit = byte & (1 << i);
+            grid.get_neighboring_cells(10);
             grid.set_cell(*index, xbit == 0);
             // index -= pick_next_index(index);
             i -= 1;
 
             *index -= 1;
         }
-    }
-}
-
-
-pub fn get_current_cell(idx: usize, cells: &mut Vec<Cell>) -> Option<&Point> {
-    match *cells.get_mut(idx).unwrap() {
-        // Cell::Content(ref mut point) => Some(point),
-        _ => None
     }
 }
