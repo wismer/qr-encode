@@ -14,58 +14,12 @@ pub enum QRSection {
     MetaData
 }
 
-struct Routes {
-    leftward: Option<usize>,
-    rightward: Option<usize>,
-    forward: Option<usize>,
-    backward: Option<usize>,
-    upper_right: Option<usize>,
-    upper_left: Option<usize>,
-    lower_left: Option<usize>,
-    lower_right: Option<usize>
-}
-
 pub struct QRGrid {
     size: usize,
     pub bits: Vec<Bit>,
     index: usize,
     format_info: FormatInfo
 }
-
-impl Routes {
-    fn next(&self) -> usize {
-        if self.leftward.is_some() && self.forward.is_some() && self.upper_right.is_some() {
-            self.upper_right.unwrap()
-        } else if self.leftward.is_some() {
-            self.leftward.unwrap()
-        } else {
-            0
-        }
-    }
-
-    fn available_paths(&self) -> usize {
-        let mut count = 0;
-
-        if self.leftward.is_some() {
-            count += 1;
-        }
-
-        if self.rightward.is_some() {
-            count += 1;
-        }
-
-        if self.forward.is_some() {
-            count += 1;
-        }
-
-        if self.backward.is_some() {
-            count += 1;
-        }
-
-        count
-    }
-}
-
 
 pub struct Cell {
     pub is_fixed: bool,
@@ -188,6 +142,28 @@ impl Grid {
         }
     }
 
+    fn get_adjacent(&mut self, x: usize, y: usize) -> Vec<(usize, usize)> {
+        let point: Coord = Coord { x: x, y: y };
+        let shift_operators = "< > - +";
+        let mut coords: Vec<(usize, usize)> = vec![];
+        for c in shift_operators.chars() {
+            let pt: Option<(usize, usize)> = match c {
+                '>' => point << 1,
+                '<' => point >> 1,
+                '+' => point +  1,
+                '-' => point -  1,
+                 _  => None
+            };
+
+            match pt {
+                Some((cx, cy)) => coords.push((cx, cy)),
+                None => {}
+            }
+        }
+
+        coords
+    }
+
     // PUBLIC
 
     pub fn size_of_grid(&self) -> usize {
@@ -200,6 +176,7 @@ impl Grid {
         self.rows.len()
     }
 }
+
 
 fn create_cell(x: usize, y: usize, size: usize) -> Cell {
     Cell {
@@ -228,10 +205,6 @@ pub fn create_grid(size: usize, mask: u8, qr_version: u8) -> Grid {
     }
     grid
 }
-//
-// fn update_adjacent_cells(grid: &mut Grid, current_cell: &Cell) -> Cell {
-//
-// }
 
 pub fn encode_byte(byte: u8, grid: &mut Grid, index: &mut usize) {
     let mut i = 7;
@@ -239,10 +212,18 @@ pub fn encode_byte(byte: u8, grid: &mut Grid, index: &mut usize) {
         {
             let xbit = byte & (1 << i);
             grid.set_cell(*index, xbit == 0);
+            let (x, y) = (*index / 49, *index % 49);
             // index -= pick_next_index(index);
             i -= 1;
 
             *index -= 1;
         }
+    }
+}
+
+fn get_mut_cell<'a>(grid: &'a mut Grid, x: usize, y:usize) -> Option<&'a mut Cell> {
+    match grid.rows.get_mut(x) {
+        Some(row) => row.cells.get_mut(y),
+        None => None
     }
 }
