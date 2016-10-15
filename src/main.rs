@@ -1,7 +1,9 @@
 extern crate image;
 pub mod grid;
 use grid::message::{ErrorCorrectionLevel};
-use grid::grid::{create_grid, encode_byte, Cell};
+use grid::grid::{create_grid, encode_byte, Grid};
+use grid::cell::Cell;
+use grid::traverse::Point;
 use std::fs::File;
 use std::path::Path;
 use image::{
@@ -66,6 +68,9 @@ fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
 }
 
 
+fn find_next_point(grid: &Grid, point: &Point) -> Point {
+    Point { x: 1, y: 1 }
+}
 
 
 fn main() {
@@ -76,10 +81,29 @@ fn main() {
     let mut img = ImageBuffer::new(49 * 20, 49 * 20);
     let mut starting_point = size - 1;
     for i in 0..(size - 1) {
-        qr.get_neighboring_cells(i);
+        qr.update_cell_paths(Point { x: i / 49, y: i % 49 });
     }
     for byte in message.into_bytes() {
-        encode_byte(byte, &mut qr, &mut starting_point);
+        let mut pt = Point { x: starting_point / 49, y: starting_point % 49 };
+        for i in 1..7 {
+            println!("x={x}, y={y}", x=pt.x, y=pt.y);
+            let xbit = byte & (1 << i);
+            qr.encode_bit(xbit == 0, pt);
+            qr.update_cell_paths(pt);
+            find_next_point(&qr, &pt);
+            if pt.x == pt.y {
+                pt = (pt << 1).unwrap();
+            } else if pt.x > pt.y {
+                pt = (pt + 1).unwrap();
+            } else {
+                pt = (pt >> 1).unwrap();
+            }
+            match pt + 1 {
+                Some(p) => pt = p,
+                None => {}
+            }
+            // encode_byte(byte, &mut qr, &mut starting_point, i);
+        }
     }
     let size = 49;
     for row in qr.rows {
