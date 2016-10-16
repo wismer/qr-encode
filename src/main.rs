@@ -72,6 +72,31 @@ fn find_next_point(grid: &Grid, point: &Point) -> Point {
     Point { x: 1, y: 1 }
 }
 
+    /*
+    Keep changing my mind....
+
+
+    ok....
+
+    so....
+
+    Priority should always be to check rightmost first.
+
+    O - O - O
+    |   |   |
+    O -[0]- 0
+    |   |   |
+    O - 0 - 0
+
+    if the above is true, and the bits are being aligned upward,
+    then I know that -1, +1 is the next point to fill. But how is that detrmined?
+
+    if the rightmost cell is filled...
+        1. check the cell above and below the one to the right...
+        2. if top-right is empty, and bottom-right is not, then that may hint
+           what the alignment is - in this case going bottom to top.
+
+    */
 
 fn main() {
     let qr_version = 1;
@@ -83,26 +108,19 @@ fn main() {
     for i in 0..(size - 1) {
         qr.update_cell_paths(Point { x: i / 49, y: i % 49 });
     }
+    let mut pt = Point { x: starting_point / 49, y: starting_point % 49 };
     for byte in message.into_bytes() {
-        let mut pt = Point { x: starting_point / 49, y: starting_point % 49 };
         for i in 1..7 {
-            println!("x={x}, y={y}", x=pt.x, y=pt.y);
             let xbit = byte & (1 << i);
-            qr.encode_bit(xbit == 0, pt);
-            qr.update_cell_paths(pt);
-            find_next_point(&qr, &pt);
-            if pt.x == pt.y {
-                pt = (pt << 1).unwrap();
-            } else if pt.x > pt.y {
-                pt = (pt + 1).unwrap();
-            } else {
-                pt = (pt >> 1).unwrap();
+            let next_point = qr.get_next_valid_point(&pt);
+            match next_point {
+                Some(p) => {
+                    println!("x={x}, y={y}, NEXT", x=pt.x, y=pt.y);
+                    qr.encode_bit(xbit == 0, p);
+                    pt = p;
+                },
+                None => println!("NOTHING")
             }
-            match pt + 1 {
-                Some(p) => pt = p,
-                None => {}
-            }
-            // encode_byte(byte, &mut qr, &mut starting_point, i);
         }
     }
     let size = 49;

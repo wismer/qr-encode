@@ -13,6 +13,14 @@ pub enum QRSection {
     MetaData
 }
 
+pub enum Direction {
+    Top(Point),
+    Bottom(Point),
+    Left(Point),
+    Right(Point),
+    None
+}
+
 pub struct Row {
     pub cells: Vec<Cell>
 }
@@ -20,6 +28,7 @@ pub struct Row {
 pub struct Grid {
     pub rows: Vec<Row>
 }
+
 
 impl<'a> Grid {
     pub fn update_cell_paths(&mut self, point: Point) {
@@ -88,7 +97,37 @@ impl<'a> Grid {
         }
     }
 
+    fn fetch_cell(&self, pt: Option<Point>) -> Option<Point> {
+        // if point is out of bounds, it will return None.
+        if pt.is_none() {
+            panic!("This should not trigger");
+        }
+        // otherwise, the point is valid, but the cell itself may not be a valid _choice_
+        let point = pt.unwrap();
+        match self.rows.get(point.x).unwrap().cells.get(point.y) {
+            Some(cell) => {
+                if cell.is_free() {
+                    Some(Point { x: cell.x, y: cell.y })
+                } else {
+                    None
+                }
+            },
+            None => None
+        }
+    }
+
     // PUBLIC
+
+    pub fn get_next_valid_point(&self, current_point: &Point) -> Option<Point> {
+        let mut done = false;
+        let mut next_point = *current_point >> 1;
+        if next_point.is_none() {
+            // rightmost edge. Alignment is to grow upwards.
+            return Some((*current_point << 1).unwrap())
+        }
+
+        next_point.unwrap() - 1
+    }
 
     pub fn encode_bit(&mut self, is_bit: bool, point: Point) {
         let mut cell = self.get_mut_cell(&point).unwrap();

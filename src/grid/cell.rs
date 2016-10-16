@@ -1,4 +1,5 @@
 use grid::util::*;
+use grid::traverse::Point;
 
 pub struct Cell {
     pub is_fixed: bool,
@@ -29,5 +30,9 @@ impl Cell {
 
     pub fn is_free(&self) -> bool {
         !self.is_fixed && self.is_empty && !self.is_format && !self.is_bridge
+    }
+
+    pub fn as_point(&self) -> Point {
+        Point { x: self.x, y: self.y }
     }
 }
