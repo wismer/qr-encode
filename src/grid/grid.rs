@@ -1,8 +1,8 @@
-use grid::message::{FormatInfo, ErrorCorrectionLevel};
 use grid::cell::Cell;
 use grid::traverse::Point;
 use grid::util::*;
-
+use grid::image::{create_qr_image};
+use std::collections::HashMap;
 
 pub enum QRSection {
     Fixed,
@@ -11,14 +11,6 @@ pub enum QRSection {
     ContentBody,
     EncType,
     MetaData
-}
-
-pub enum Direction {
-    Top(Point),
-    Bottom(Point),
-    Left(Point),
-    Right(Point),
-    None
 }
 
 pub struct Row {
@@ -31,39 +23,6 @@ pub struct Grid {
 
 
 impl<'a> Grid {
-    pub fn update_cell_paths(&mut self, point: Point) {
-        let mut paths = 0;
-        for adjacent in Point::generate_adjacent_points(point) {
-            if self.is_valid_path(adjacent) {
-                paths += 1;
-            } else if paths > 0 {
-                paths -= 1;
-            }
-        }
-
-        let mut row = self.rows.get_mut(point.x).unwrap();
-        match row.cells.get_mut(point.y) {
-            Some(cell) => {
-                cell.paths = paths;
-            },
-            None => {}
-        }
-    }
-
-    pub fn get_mut_cell(&mut self, point: &Point) -> Option<&mut Cell> {
-        match self.rows.get_mut(point.x) {
-            Some(row) => row.cells.get_mut(point.y),
-            None => None
-        }
-    }
-
-    pub fn is_valid_path(&mut self, point: Point) -> bool {
-        match self.rows.get(point.x).unwrap().cells.get(point.y) {
-            Some(cell) => cell.is_free(),
-            None => false
-        }
-    }
-
     fn push(&mut self, x: usize, y: usize, size: usize) {
         let mut make_row = false;
         let row_count = self.rows.len();
@@ -97,36 +56,19 @@ impl<'a> Grid {
         }
     }
 
-    fn fetch_cell(&self, pt: Option<Point>) -> Option<Point> {
-        // if point is out of bounds, it will return None.
-        if pt.is_none() {
-            panic!("This should not trigger");
-        }
-        // otherwise, the point is valid, but the cell itself may not be a valid _choice_
-        let point = pt.unwrap();
-        match self.rows.get(point.x).unwrap().cells.get(point.y) {
-            Some(cell) => {
-                if cell.is_free() {
-                    Some(Point { x: cell.x, y: cell.y })
-                } else {
-                    None
-                }
-            },
+    // PUBLIC
+    pub fn get_mut_cell(&mut self, point: &Point) -> Option<&mut Cell> {
+        match self.rows.get_mut(point.x) {
+            Some(row) => row.cells.get_mut(point.y),
             None => None
         }
     }
 
-    // PUBLIC
-
-    pub fn get_next_valid_point(&self, current_point: &Point) -> Option<Point> {
-        let mut done = false;
-        let mut next_point = *current_point >> 1;
-        if next_point.is_none() {
-            // rightmost edge. Alignment is to grow upwards.
-            return Some((*current_point << 1).unwrap())
+    pub fn is_valid_path(&mut self, point: Point) -> bool {
+        match self.rows.get(point.x).unwrap().cells.get(point.y) {
+            Some(cell) => cell.is_free(),
+            None => false
         }
-
-        next_point.unwrap() - 1
     }
 
     pub fn encode_bit(&mut self, is_bit: bool, point: Point) {
@@ -135,64 +77,27 @@ impl<'a> Grid {
         cell.is_empty = false;
         cell.is_filled = true;
     }
-
-    pub fn size_of_grid(&self) -> usize {
-        let mut x = 1;
-        let mut total = 0;
-        for row in &self.rows {
-            x += 1;
-            total += row.cells.len();
-        }
-        self.rows.len()
-    }
 }
 
+pub fn encode_byte(grid: &mut Grid, byte: u8) {
 
-pub fn create_grid(size: usize, mask: u8, qr_version: u8) -> Grid {
+}
+
+pub fn create_grid(size: usize, mask: u8, qr_version: u8, message: String) {
     let cells: Vec<Cell> = Vec::new();
-    let row = Row { cells: cells };
     let rows: Vec<Row> = Vec::new();
     let max = (size * size);
     let mut grid = Grid { rows: rows };
+
     for i in 0..max {
         let x = i / size;
         let y = i % size;
         grid.push(x, y, size);
     }
-    grid
-}
 
-pub fn encode_byte(byte: u8, grid: &mut Grid, index: &mut usize, step: usize) {
-    let xbit = byte & (1 << step);
-
-    // let mut i = 7;
-    // while i >= 0 {
-    //
-    //     let xbit = byte & (1 << i);
-    //     // grid.set_cell(*index, xbit == 0);
-    //     let (x, y) = (*index / 49, *index % 49);
-    //
-    //     {
-    //         let mut cell = get_mut_cell(&mut grid, x, y);
-    //         match cell {
-    //             Some(c) => c.is_bit = xbit == 0 && !c.is_fixed,
-    //             None => {}
-    //         }
-    //     }
-    //
-    //     {
-    //
-    //     }
-    //     // index -= pick_next_index(index);
-    //     i -= 1;
-    //
-    //     *index -= 1;
-    // }
-}
-
-fn get_mut_cell<'a>(grid: &'a mut Grid, x: usize, y: usize) -> Option<&'a mut Cell> {
-    match grid.rows.get_mut(x) {
-        Some(row) => row.cells.get_mut(y),
-        None => None
+    for byte in message.into_bytes() {
+        encode_byte(&mut grid, byte);
     }
+
+    create_qr_image(grid);
 }

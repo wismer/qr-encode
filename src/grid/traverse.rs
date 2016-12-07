@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::ops::{Add, Shl, Shr, Sub};
-use grid::bit::Bit;
 
 
 #[derive(Copy, Clone)]
@@ -36,8 +35,8 @@ impl Add<usize> for Point {
 
     fn add(self, rhs: usize) -> Option<Point> {
         match self.x {
-             48 => None,
-             _  => Some(Point { x: self.x + rhs, y: self.y })
+             0 => None,
+             _ => Some(Point { x: self.x - rhs, y: self.y })
         }
     }
 }
@@ -47,8 +46,8 @@ impl Sub<usize> for Point {
 
     fn sub(self, rhs: usize) -> Option<Point> {
         match self.x {
-            0 => None,
-            _ => Some(Point { x: self.x - rhs, y: self.y })
+            48 => None,
+             _ => Some(Point { x: self.x + rhs, y: self.y })
         }
     }
 }

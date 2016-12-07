@@ -166,8 +166,6 @@ class QR(object):
     def triple_route(self, point, paths):
         if not paths.get('rightward'):
             return point << 1
-        if not paths.get('leftward'):
-            return point >> 1
         if not paths.get('forward'):
             return point + 1
 
