@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::ops::{Add, Shl, Shr, Sub};
+use std::ops::{Add, Shl, Shr, Sub, BitXor};
 
 
 #[derive(Copy, Clone)]
@@ -16,6 +16,36 @@ impl Shl<usize> for Point {
              0 => None,
              _ => Some(Point { x: self.x, y: self.y - rhs })
         }
+    }
+}
+
+impl BitXor for Point {
+    type Output = bool;
+
+    fn bitxor(self, rhs: Point) -> bool {
+        // check to see if the current point is below the other point
+        self.y >= rhs.y && self.x > rhs.x
+    }
+}
+
+impl Shr<(isize, isize)> for Point {
+    type Output = Option<Point>;
+
+    fn shr(self, rhs: (isize, isize)) -> Option<Point> {
+        let (x, y) = rhs;
+        let (cx, cy) = (self.x as isize, self.y as isize);
+
+        if cx + x < 0 || cy + y < 0 {
+            return None
+        }
+
+        let point = Point { x: (cx + x) as usize, y: (cy + y) as usize };
+
+        if point.x > 48 || point.y > 48 {
+            return None
+        }
+
+        Some(point)
     }
 }
 
@@ -54,7 +84,6 @@ impl Sub<usize> for Point {
 
 impl Point {
     pub fn generate_adjacent_points(point: Point) -> Vec<Point> {
-        let size = 49 * 49;
         let shift_operators = "< > - +";
         let mut points: Vec<Point> = vec![];
         for c in shift_operators.chars() {
@@ -73,9 +102,5 @@ impl Point {
         }
 
         points
-    }
-
-    fn index(&self, dim: usize) -> usize {
-        (dim / self.x) + self.y
     }
 }

@@ -6,17 +6,10 @@ use std::path::Path;
 use grid::cell::Cell;
 use grid::grid::Grid;
 use self::image_lib::{
-    GenericImage,
     ImageBuffer,
     Rgb,
-    Pixel
+    Frame
 };
-
-enum ColorSet {
-    Border(Color),
-    CellFixed(Color),
-    CellFree(Color)
-}
 
 struct Color {
     r: u8,
@@ -67,7 +60,7 @@ fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
     pixels
 }
 
-pub fn create_qr_image(grid: Grid) {
+pub fn create_qr_image(grid: &Grid) {
     let mut img = ImageBuffer::new(49 * 20, 49 * 20);
     for row in grid.rows {
         for cell in row.cells {
