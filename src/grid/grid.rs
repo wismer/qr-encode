@@ -1,8 +1,20 @@
+extern crate image as image_lib;
+
+use std::fs::File;
+use std::path::Path;
+
 use grid::cell::Cell;
 use grid::traverse::Point;
 use grid::util::*;
-use grid::image::{create_qr_image};
+use grid::image::{create_qr_image, get_pixel_points};
+use self::image_lib::{
+    ImageBuffer,
+    Rgba,
+    Pixel
+};
+use self::image_lib::gif::{Encoder, Frame};
 use std::collections::HashMap;
+use std::borrow::Cow;
 
 pub enum QRSection {
     Fixed,
@@ -154,13 +166,11 @@ impl<'a> Grid {
 
 
 
-pub fn encode_byte(grid: &mut Grid, byte: u8, last_position: (usize, usize)) -> (usize, usize) {
+pub fn encode_byte(grid: &mut Grid, byte: u8, last_position: (usize, usize)) -> (usize, usize, ImageBuffer<Rgba<u8>, Vec<u8>>) {
     let mut i = 7u8;
-    let (mut x, mut y) = last_position;
-    let mut cx = 0;
-    let mut cy = 0;
-    let mut depth = 0;
+    let (x, y) = last_position;
     let mut point = Point { x: x, y: y };
+    let mut img = ImageBuffer::new(49 * 20, 49 * 20);
 
     while i > 0 {
         let xbit = byte & (1 << i);
@@ -169,12 +179,22 @@ pub fn encode_byte(grid: &mut Grid, byte: u8, last_position: (usize, usize)) -> 
         point = grid.get_next_point(point);
 
         // get next point
-        create_qr_image(&grid);
 
         i -= 1;
     }
 
-    (point.x, point.y)
+    for row in &grid.rows {
+        for cell in &row.cells {
+            for pixel in get_pixel_points(&cell) {
+                let (x, y, color) = pixel;
+                let rgb = Rgba { data: [color.r, color.g, color.b, 1] };
+                img.put_pixel(x, y, rgb);
+            }
+        }
+    }
+
+
+    (point.x, point.y, img)
 }
 
 pub fn create_grid(size: usize, mask: u8, qr_version: u8, message: String) {
@@ -188,11 +208,21 @@ pub fn create_grid(size: usize, mask: u8, qr_version: u8, message: String) {
         let y = i % size;
         grid.push(x, y, size);
     }
-    let mut position: (usize, usize) = (48, 48);
+    let (cx, cy) = (48, 48);
+    let mut fout = File::create(&Path::new("qr.gif")).unwrap();
     for byte in message.into_bytes() {
-        position = encode_byte(&mut grid, byte, position);
-        println!("{:?}", position);
+        let (cx, cy, buffer) = encode_byte(&mut grid, byte, (cx, cy));
+        let mut encoder = Encoder::new(&mut fout);
+        let mut frame = Frame::default();
+        frame.buffer = Cow::Borrowed(&*buffer);
+        frame.height = 49 * 20;
+        frame.width = 49 * 20;
+        let result = encoder.encode(frame);
+        match result {
+            Ok(_) => println!("IT WORKED"),
+            Err(e) => println!("{:?}", e)
+        }
     }
 
-    // create_qr_image(grid);
+    create_qr_image(grid);
 }
