@@ -22,8 +22,8 @@ impl Cell {
             is_bit: false,
             is_filled: false,
             is_format: is_format_area(x, y, size - 1),
-            x: y,
-            y: x,
+            x: x,
+            y: y,
             paths: 0
         }
     }

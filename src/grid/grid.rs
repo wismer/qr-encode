@@ -106,8 +106,8 @@ impl<'a> Grid {
     pub fn get_next_point(&self, point: Point) -> Point {
         let adjacent_points: Vec<(isize, isize)> = vec![
             (1, 1),
-            (-1, 1),
             (1, 0),
+            (-1, 1),
             (-1, 0)
         ];
 
@@ -117,7 +117,6 @@ impl<'a> Grid {
                 return false
             } else {
                 let pt = next_point.unwrap();
-                println!("x: {x} y: {y}, from {:?}", p=p, x=pt.x, y=pt.y);
 
                 let cell_ref = self.get_cell_ref(pt.x, pt.y);
                 match cell_ref {
@@ -152,6 +151,11 @@ pub fn encode_byte(grid: &mut Grid, byte: u8, last_position: (usize, usize)) -> 
         let xbit = byte & (1 << i);
 
         grid.encode_bit(xbit == 0, point);
+
+        if point.x > 40 && point.y > 40 {
+            println!("x: {x} y: {y}", x=point.x, y=point.y);
+        }
+
         point = grid.get_next_point(point);
 
         // get next point
@@ -163,7 +167,6 @@ pub fn encode_byte(grid: &mut Grid, byte: u8, last_position: (usize, usize)) -> 
 }
 
 pub fn create_grid(size: usize, mask: u8, qr_version: u8, message: String) {
-    let cells: Vec<Cell> = Vec::new();
     let rows: Vec<Row> = Vec::new();
     let max = size * size;
     let mut grid = Grid { rows: rows };

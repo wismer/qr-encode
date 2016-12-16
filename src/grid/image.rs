@@ -21,15 +21,13 @@ pub fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
     let i = (cell.x * 20) as u32;
     let j = (cell.y * 20) as u32;
     let mut pixels: Vec<(u32, u32, Color)> = vec![];
-    let mut x_border = true;
-    let mut y_border = true;
-    for col in i..(i + 20) {
-        x_border = match col % 20 {
+    for row in i..(i + 20) {
+        let x_border = match row % 20 {
             2...18 => false,
             _ => true
         };
-        for row in j..(j + 20) {
-            y_border = match row % 20 {
+        for col in j..(j + 20) {
+            let y_border = match col % 20 {
                 2...18 => false,
                 _ => true
             };
