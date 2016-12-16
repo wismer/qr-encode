@@ -1,188 +1,194 @@
-use grid::message::{FormatInfo, ErrorCorrectionLevel};
+extern crate image as image_lib;
 
-enum QRSection {
+use grid::cell::{Cell, CellValue};
+use grid::traverse::Point;
+use grid::image::{create_qr_image};
+
+pub enum QRSection {
     Fixed,
     FixedBridge,
     Format,
-    Error,
-    Message,
-    MsgMode,
-    MsgLength,
-    None
-}
-
-struct Point<'a> {
-    bit: &'a Bit
-}
-
-struct BitPath {
-    path: Vec<(usize, usize)>
-}
-
-enum Orientation {
-    RotateUpward([usize; 8]),
-    RotateDownward([usize; 8]),
-    Downward([usize; 8]),
-    Upward([usize; 8])
-}
-
-pub struct Bit {
-    pub x: usize,
-    pub y: usize,
-    // true for 1, false for 0
-    pub val: bool,
-    section: QRSection
-}
-
-struct Chunk(u8, u8);
-
-pub struct QRGrid {
-    size: usize,
-    pub bits: Vec<Bit>,
-    format_info: FormatInfo
+    ContentBody,
+    EncType,
+    MetaData
 }
 
 
-impl Bit {
-    fn is_valid(&self) -> bool {
-        match self.section {
-            QRSection::None => true,
-            _ => false
+pub struct Row {
+    pub cells: Vec<Cell>
+}
+
+pub struct Grid {
+    pub rows: Vec<Row>
+}
+
+impl<'a> Grid {
+    fn push(&mut self, x: usize, y: usize, size: usize) {
+        let mut make_row = false;
+        let row_count = self.rows.len();
+        // grab the last row in the vector
+        match self.rows.last_mut() {
+            // if there exists a row already...
+            Some(row) => {
+                // check to see if it is not full (being 49 for now)
+                if row.cells.len() < 49 {
+                    // if it can still accept cells, then create one with the given coordinate
+                    let cell = Cell::new(x, y, size);
+                    // and append it to that particular row being built
+                    row.cells.push(cell);
+                } else {
+                    // if the current row is full, then a new one needs to be created
+                    // and then bound to `new_row`
+                    make_row = row_count < 49;
+                }
+            },
+            None => {
+                make_row = true;
+                // there are no rows, so I have to make one!
+            }
+        }
+
+        if make_row && row_count < 49 {
+            let mut row = Row { cells: Vec::new() };
+            let cell = Cell::new(x, y, size);
+            row.cells.push(cell);
+            self.rows.push(row);
         }
     }
 
-    pub fn color(&self) -> [u8; 3] {
-        match self.section {
-            QRSection::None => {
-                if self.val {
-                    [0, 0, 0]
-                } else {
-                    [255, 255, 255]
-                }
-            },
-            QRSection::FixedBridge => {
-                if self.x == 6 && self.y % 2 == 0 || self.y == 6 && self.x % 2 == 0 {
-                    [0, 0, 0]
-                } else {
-                    [255, 255, 255]
-                }
-            },
-            QRSection::Fixed => {
-                if self.x == 1 || self.x == 5 || self.x == 49 - 6 || self.x == 47 {
-                    match self.y {
-                        1...5 | 43...47 => [255, 255, 255],
-                        7 => [255, 255, 255],
-                        _ => [0, 0, 0]
-                    }
-                } else if self.y == 1 || self.y == 5 || self.y == 49 - 6 || self.y == 47 {
-                    match self.x {
-                        1...5 | 43...47 => [255, 255, 255],
-                        7 => [255, 255, 255],
-                        _ => [0, 0, 0]
-                    }
-                } else if self.x == 7 || self.y == 7 {
-                    [255, 255, 255]
-                } else {
-                    [0, 0, 0]
-                }
-            },
-            QRSection::Format => [130, 0, 155],
-            _ => [255, 255, 255]
+    // PUBLIC
+    pub fn get_mut_cell(&mut self, point: &Point) -> Option<&mut Cell> {
+        match self.rows.get_mut(point.x) {
+            Some(row) => row.cells.get_mut(point.y),
+            None => None
         }
     }
-}
 
-fn is_fixed_area(x: usize, y: usize, size: usize) -> bool {
-    x <= 7 && (y <= 7 || (size - y) <= 7) || y <= 7 && (size - x) <= 7
-}
-
-fn is_bridge_area(x: usize, y: usize, size: usize) -> bool {
-    x == 6 && (y >= 8 && y <= size - 9) || x >= 8 && x <= (size - 9) && y == 6
-}
-
-fn is_format_area(x: usize, y: usize, size: usize) -> bool {
-    if x == 8 {
-        match y {
-            0...8 | 42...48 => true,
-            _ => false
+    pub fn is_valid_path(&mut self, point: Option<Point>) -> bool {
+        if point.is_none() {
+            return false
         }
-    } else if y == 8 {
-        match x {
-            0...8 | 42...48 => true,
-            _ => false
+
+        let pt = point.unwrap();
+        // println!("IS VALID {} {}", pt.x, pt.y);
+
+        match self.rows.get(pt.x).unwrap().cells.get(pt.y) {
+            Some(cell) => cell.is_free(),
+            None => false
         }
-    } else {
-        false
     }
-}
 
+    pub fn encode_bit(&mut self, is_bit: bool, point: Point) {
+        let mut cell = self.get_mut_cell(&point).unwrap();
+        cell.is_bit = is_bit;
+        cell.is_empty = false;
+        cell.is_filled = true;
+    }
 
-impl QRGrid {
-    pub fn new(size: usize, mask: u8, error_correction: ErrorCorrectionLevel) -> QRGrid {
-        let mut bits: Vec<Bit> = vec![];
+    pub fn get_cell_ref(&self, x: usize, y: usize) -> CellValue {
+        let cell_ref = match self.rows.get(x) {
+            Some(row) => row.cells.get(y),
+            None => None
+        };
 
-        for i in 0..(size * size) {
-            let row = i / size;
-            let col = i % size;
-            let bit: Bit;
-            if is_fixed_area(row, col, size) {
-                bit = Bit { x: row, y: col, val: false, section: QRSection::Fixed };
-            } else if is_bridge_area(row, col, size) {
-                bit = Bit { x: row, y: col, val: false, section: QRSection::FixedBridge };
-            } else if is_format_area(row, col, size) {
-                bit = Bit { x: row, y: col, val: false, section: QRSection::Format };
+        if cell_ref.is_none() {
+            return CellValue::None
+        }
+
+        let cell = cell_ref.unwrap();
+        cell.value()
+    }
+
+    pub fn get_next_point(&self, point: Point) -> Point {
+        let adjacent_points: Vec<(isize, isize)> = vec![
+            (1, 1),
+            (1, 0),
+            (-1, 1),
+            (-1, 0)
+        ];
+
+        let best_candidate = adjacent_points.into_iter().find(|&p| {
+            let next_point = point >> p;
+            if next_point.is_none() {
+                return false
             } else {
-                bit = Bit { x: row, y: col, val: false, section: QRSection::None };
+                let pt = next_point.unwrap();
+
+                let cell_ref = self.get_cell_ref(pt.x, pt.y);
+                match cell_ref {
+                    CellValue::Free(_) => true,
+                    _ => false
+                }
             }
-            bits.push(bit);
-        }
+        });
 
-        let format_info = FormatInfo::new(mask, error_correction);
-        QRGrid { size: size, bits: bits, format_info: format_info }
-    }
 
-    pub fn show(&self) {
-        let f = self.format_info.mask_func_factory();
-        for n in &self.bits {
-            println!("{} {}", n.x, n.y);
-
-            let v = f(n.x, n.y);
-            println!("{}", v);
-        }
-    }
-
-    pub fn encode(&mut self, message: String, mode: u8) {
-        let mut bits = &mut self.bits;
-        let msg_length = message.len();
-        let mut index = 2401;
-        for byte in message.into_bytes() {
-            let mut i = 7;
-            while i > 0 {
-                let ref mut bit = bits[index - 1];
-                let xbit = byte & (1 << i);
-                bit.val = xbit == 0;
-                i -= 1;
-                index -= 1;
+        if best_candidate.is_some() {
+            let next_point = (point >> best_candidate.unwrap()).unwrap();
+            if point ^ next_point {
+                (point << 1).unwrap()
+            } else {
+                next_point
+            }
+        } else {
+            match point + 1 {
+                Some(px) => {
+                    match self.get_cell_ref(px.x, px.y) {
+                        CellValue::Bridge(cell) => {
+                            let bridge_point = cell.as_point();
+                            match bridge_point + 2 {
+                                Some(_) => Point { x: bridge_point.x + 2, y: bridge_point.y },
+                                None => (point << 1).unwrap()
+                            }
+                        },
+                        _ => (point << 1).unwrap()
+                    }
+                },
+                None => (point << 1).unwrap()
             }
         }
     }
+}
 
-    fn point_within_bounds(&self, index: usize) -> bool {
-        index < (self.size * 2) - 1 && index > 0
+
+
+pub fn encode_byte(grid: &mut Grid, byte: u8, last_position: (usize, usize)) -> (usize, usize) {
+    let mut i = 0u8;
+    let (x, y) = last_position;
+    let mut point = Point { x: x, y: y };
+
+    while i < 8 {
+        let xbit = byte & (1 << i);
+
+        grid.encode_bit(xbit == 0, point);
+
+        println!("x: {x} y: {y}", x=point.x, y=point.y);
+
+        point = grid.get_next_point(point);
+
+        // get next point
+
+        i += 1;
     }
 
-    fn get_possible_paths(&self, index: usize) {
+    (point.x, point.y)
+}
 
+pub fn create_grid(size: usize, mask: u8, qr_version: u8, message: String) {
+    let rows: Vec<Row> = Vec::new();
+    let max = size * size;
+    let mut grid = Grid { rows: rows };
+
+    for i in 0..max {
+        let x = i / size;
+        let y = i % size;
+        grid.push(x, y, size);
+    }
+    let mut position = (48, 48);
+    for byte in message.into_bytes() {
+        position = encode_byte(&mut grid, byte, position);
+        println!("{:?}", "bite me");
     }
 
-    fn get_point(&self, x: usize, y: usize) -> Option<Point> {
-        if x > (self.size - 1) * 2 || y > (self.size - 1) * 2 {
-            return None
-        }
-
-        let index = (x * (self.size - 1)) + y;
-        let ref bit = self.bits[index];
-        let point = Point { bit: bit };
-        Some(point)
-    }
+    create_qr_image(grid);
 }
