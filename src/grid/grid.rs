@@ -1,6 +1,6 @@
 extern crate image as image_lib;
 
-use grid::cell::{Cell, CellValue};
+use grid::cell::{Cell, CellRef};
 use grid::traverse::Point;
 use grid::image::{create_qr_image};
 
@@ -85,14 +85,14 @@ impl<'a> Grid {
         cell.is_filled = true;
     }
 
-    pub fn get_cell_ref(&self, x: usize, y: usize) -> CellValue {
+    pub fn get_cell_ref(&self, x: usize, y: usize) -> CellRef {
         let cell_ref = match self.rows.get(x) {
             Some(row) => row.cells.get(y),
             None => None
         };
 
         if cell_ref.is_none() {
-            return CellValue::None
+            return CellRef::None
         }
 
         let cell = cell_ref.unwrap();
@@ -116,7 +116,7 @@ impl<'a> Grid {
 
                 let cell_ref = self.get_cell_ref(pt.x, pt.y);
                 match cell_ref {
-                    CellValue::Free(_) => true,
+                    CellRef::Free(_) => true,
                     _ => false
                 }
             }
@@ -131,21 +131,7 @@ impl<'a> Grid {
                 next_point
             }
         } else {
-            match point + 1 {
-                Some(px) => {
-                    match self.get_cell_ref(px.x, px.y) {
-                        CellValue::Bridge(cell) => {
-                            let bridge_point = cell.as_point();
-                            match bridge_point + 2 {
-                                Some(_) => Point { x: bridge_point.x + 2, y: bridge_point.y },
-                                None => (point << 1).unwrap()
-                            }
-                        },
-                        _ => (point << 1).unwrap()
-                    }
-                },
-                None => (point << 1).unwrap()
-            }
+            (point << 1).unwrap()
         }
     }
 }

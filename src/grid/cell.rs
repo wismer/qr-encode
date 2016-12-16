@@ -1,5 +1,6 @@
 use grid::util::*;
 use grid::traverse::Point;
+
 pub struct Cell {
     pub is_fixed: bool,
     pub is_bridge: bool,
@@ -12,7 +13,7 @@ pub struct Cell {
     pub paths: usize
 }
 
-pub enum CellValue<'a> {
+pub enum CellRef<'a> {
     Free(&'a Cell),
     Bridge(&'a Cell),
     Filled,
@@ -36,13 +37,13 @@ impl Cell {
         }
     }
 
-    pub fn value(&self) -> CellValue {
+    pub fn value(&self) -> CellRef {
         if self.is_free() {
-            CellValue::Free(self)
+            CellRef::Free(self)
         } else if self.is_bridge {
-            CellValue::Bridge(self)
+            CellRef::Bridge(self)
         } else {
-            CellValue::None
+            CellRef::None
         }
     }
 
