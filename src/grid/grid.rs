@@ -1,6 +1,6 @@
 extern crate image as image_lib;
 
-use grid::cell::Cell;
+use grid::cell::{Cell, CellValue};
 use grid::traverse::Point;
 use grid::image::{create_qr_image};
 
@@ -12,6 +12,7 @@ pub enum QRSection {
     EncType,
     MetaData
 }
+
 
 pub struct Row {
     pub cells: Vec<Cell>
@@ -84,23 +85,18 @@ impl<'a> Grid {
         cell.is_filled = true;
     }
 
-    pub fn get_cell_ref(&self, x: usize, y: usize) -> Option<&Cell> {
+    pub fn get_cell_ref(&self, x: usize, y: usize) -> CellValue {
         let cell_ref = match self.rows.get(x) {
             Some(row) => row.cells.get(y),
             None => None
         };
 
         if cell_ref.is_none() {
-            return None
+            return CellValue::None
         }
 
         let cell = cell_ref.unwrap();
-
-        if cell.is_free() {
-            Some(cell)
-        } else {
-            None
-        }
+        cell.value()
     }
 
     pub fn get_next_point(&self, point: Point) -> Point {
@@ -120,8 +116,8 @@ impl<'a> Grid {
 
                 let cell_ref = self.get_cell_ref(pt.x, pt.y);
                 match cell_ref {
-                    Some(_) => true,
-                    None => false
+                    CellValue::Free(_) => true,
+                    _ => false
                 }
             }
         });
@@ -135,7 +131,21 @@ impl<'a> Grid {
                 next_point
             }
         } else {
-            (point << 1).unwrap()
+            match point + 1 {
+                Some(px) => {
+                    match self.get_cell_ref(px.x, px.y) {
+                        CellValue::Bridge(cell) => {
+                            let bridge_point = cell.as_point();
+                            match bridge_point + 2 {
+                                Some(_) => Point { x: bridge_point.x + 2, y: bridge_point.y },
+                                None => (point << 1).unwrap()
+                            }
+                        },
+                        _ => (point << 1).unwrap()
+                    }
+                },
+                None => (point << 1).unwrap()
+            }
         }
     }
 }
@@ -143,24 +153,22 @@ impl<'a> Grid {
 
 
 pub fn encode_byte(grid: &mut Grid, byte: u8, last_position: (usize, usize)) -> (usize, usize) {
-    let mut i = 7u8;
+    let mut i = 0u8;
     let (x, y) = last_position;
     let mut point = Point { x: x, y: y };
 
-    while i > 0 {
+    while i < 8 {
         let xbit = byte & (1 << i);
 
         grid.encode_bit(xbit == 0, point);
 
-        if point.x > 40 && point.y > 40 {
-            println!("x: {x} y: {y}", x=point.x, y=point.y);
-        }
+        println!("x: {x} y: {y}", x=point.x, y=point.y);
 
         point = grid.get_next_point(point);
 
         // get next point
 
-        i -= 1;
+        i += 1;
     }
 
     (point.x, point.y)
@@ -179,6 +187,7 @@ pub fn create_grid(size: usize, mask: u8, qr_version: u8, message: String) {
     let mut position = (48, 48);
     for byte in message.into_bytes() {
         position = encode_byte(&mut grid, byte, position);
+        println!("{:?}", "bite me");
     }
 
     create_qr_image(grid);
