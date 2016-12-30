@@ -176,21 +176,30 @@ pub fn create_grid(size: usize, mask: u8, qr_version: u8, message: String) {
         position = encode_byte(&mut grid, byte, position);
         println!("{:?}", "bite me");
     }
-    let start_points: [(Point, usize); 3] = [
-        (Point { x: 1, y: 1 }, 5),
-        (Point { x: 1, y: 43 }, 5),
-        (Point { x: 43, y: 1 }, 5),
+    let start_points: [(Point, usize, Option<char>); 9] = [
+        (Point { x: 1, y: 1 }, 5, None),
+        (Point { x: 1, y: 43 }, 5, None),
+        (Point { x: 43, y: 1 }, 5, None),
+        (Point { x: 41, y: 0 }, 8, Some('>')),
+        (Point { x: 48, y: 7 }, 8, Some('+')),
+        (Point { x: 0, y: 41 }, 8, Some('-')),
+        (Point { x: 7, y: 0 }, 8, Some('>')),
+        (Point { x: 0, y: 7 }, 8, Some('-')),
+        (Point { x: 7, y: 41 }, 8, Some('>')),
     ];
     let mut points = vec![];
     for coords in start_points.into_iter() {
-        let (pt, blocks) = *coords;
-        for p in Point::square_points(pt, blocks) {
-            points.push(p);
+        let (pt, blocks, operator) = *coords;
+        if operator.is_none() {
+            for p in Point::square_points(pt, blocks) {
+                points.push(p);
+            }
+        } else {
+            // stupid_friggin_areas_that_also_need_to_be_white..
+            points.push(pt);
+            Point::line(&mut points, blocks, operator.unwrap());
         }
     }
-
-    // stupid_friggin_areas_that_also_need_to_be_white..
-
 
     for point in points {
         match grid.get_mut_cell(&point) {
