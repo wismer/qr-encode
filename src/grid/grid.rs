@@ -1,7 +1,7 @@
 extern crate image as image_lib;
 
 use grid::cell::{Cell, CellRef};
-use grid::traverse::Point;
+use grid::traverse::{Point, Line, Direction};
 use grid::image::{create_qr_image};
 
 pub enum QRSection {
@@ -170,11 +170,35 @@ pub fn create_grid(size: usize, mask: u8, qr_version: u8, message: String) {
         let y = i % size;
         grid.push(x, y, size);
     }
+
     let mut position = (48, 48);
     for byte in message.into_bytes() {
         position = encode_byte(&mut grid, byte, position);
         println!("{:?}", "bite me");
     }
+    let start_points: [(Point, usize); 3] = [
+        (Point { x: 1, y: 1 }, 5),
+        (Point { x: 1, y: 43 }, 5),
+        (Point { x: 43, y: 1 }, 5),
+    ];
+    let mut points = vec![];
+    for coords in start_points.into_iter() {
+        let (pt, blocks) = *coords;
+        for p in Point::square_points(pt, blocks) {
+            points.push(p);
+        }
+    }
+
+    // stupid_friggin_areas_that_also_need_to_be_white..
+
+
+    for point in points {
+        match grid.get_mut_cell(&point) {
+            Some(mut cell) => cell.is_filled = true,
+            None => {}
+        }
+    }
+
 
     create_qr_image(grid);
 }

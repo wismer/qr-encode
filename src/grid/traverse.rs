@@ -1,11 +1,51 @@
-use std::collections::HashMap;
 use std::ops::{Add, Shl, Shr, Sub, BitXor};
 
+pub enum Direction {
+    Up,
+    Down,
+    Left,
+    Right
+}
 
 #[derive(Copy, Clone)]
 pub struct Point {
     pub x: usize,
     pub y: usize,
+}
+
+pub struct Line {
+    from: Point,
+    to: Point,
+    direction: Direction
+}
+
+impl Line {
+    pub fn points(&self, blocks: usize) -> Vec<Point> {
+        let mut points: Vec<Point> = vec![];
+        match self.direction {
+            Direction::Up => {
+                for i in self.from.x..blocks {
+                    points.push(Point { x: self.from.x - i, y: self.from.y });
+                }
+            },
+            Direction::Left => {
+                for i in self.from.y..blocks {
+                    points.push(Point { x: self.from.x, y: self.from.y - i });
+                }
+            },
+            Direction::Down => {
+                for i in self.from.x..blocks {
+                    points.push(Point { x: self.from.x + i, y: self.from.y });
+                }
+            },
+            Direction::Right => {
+                for i in self.from.y..blocks {
+                    points.push(Point { x: self.from.x, y: self.from.y + i });
+                }
+            }
+        }
+        points
+    }
 }
 
 impl Shl<usize> for Point {
@@ -83,6 +123,29 @@ impl Sub<usize> for Point {
 }
 
 impl Point {
+    pub fn square_points(start: Point, blocks: usize) -> Vec<Point> {
+        let mut points: Vec<Point> = vec![start];
+        for operator in ">-<+".chars() {
+            Point::line(&mut points, blocks, operator);
+        }
+
+        points
+    }
+
+    pub fn line(points: &mut Vec<Point>, blocks: usize, operator: char) {
+        let mut pt = *points.last().unwrap();
+        for _ in 1..blocks {
+            pt = match operator {
+                '+' => (pt + 1).unwrap(),
+                '-' => (pt - 1).unwrap(),
+                '>' => (pt >> 1).unwrap(),
+                '<' => (pt << 1).unwrap(),
+                _ => panic!("missing the operator, my dude.")
+            };
+            points.push(pt);
+        }
+    }
+
     pub fn generate_adjacent_points(point: Point) -> Vec<Point> {
         let shift_operators = "< > - +";
         let mut points: Vec<Point> = vec![];
