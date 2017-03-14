@@ -3,5 +3,11 @@ name = "qr-encode"
 version = "0.1.0"
 authors = ["Matt Long <matthewhl@gmail.com>"]
 
+[lib]
+name = "qr_encode"
+
+[[bin]]
+name = "qr-gen"
+
 [dependencies]
 image = "*"
