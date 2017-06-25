@@ -41,7 +41,7 @@ pub fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
             };
             if x_border || y_border {
                 color = Color { r: 125, b: 125, g: 125 };
-            } else if cell.is_fixed || cell.is_bit {
+            } else if (cell.is_fixed && !cell.is_filled) || cell.is_bit {
                 color = Color { r: 0, b: 0, g: 0 + shader };
             } else if cell.is_bridge {
                 color = Color { r: 200, b: 100, g: 10 + shader };

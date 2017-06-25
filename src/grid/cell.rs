@@ -1,5 +1,8 @@
 use grid::util::*;
 use grid::traverse::Point;
+use grid::grid::Grid;
+
+#[derive(Debug)]
 pub struct Cell {
     pub is_fixed: bool,
     pub is_bridge: bool,
@@ -12,7 +15,8 @@ pub struct Cell {
     pub paths: usize
 }
 
-pub enum CellValue<'a> {
+#[derive(Debug)]
+pub enum CellRef<'a> {
     Free(&'a Cell),
     Bridge(&'a Cell),
     Filled,
@@ -36,13 +40,13 @@ impl Cell {
         }
     }
 
-    pub fn value(&self) -> CellValue {
-        if self.is_free() {
-            CellValue::Free(self)
-        } else if self.is_bridge {
-            CellValue::Bridge(self)
+    pub fn value(&self) -> CellRef {
+        if self.is_bridge {
+            CellRef::Bridge(self)
+        } else if self.is_free() {
+            CellRef::Free(self)
         } else {
-            CellValue::None
+            CellRef::None
         }
     }
 
@@ -54,3 +58,20 @@ impl Cell {
         Point { x: self.x, y: self.y }
     }
 }
+
+// trait Iterator {
+//     type Item;
+//     fn next(&mut self) -> Option<Self::Item>;
+// }
+//
+// impl Iterator for Grid {
+//     type Item = [Option<Cell>; 4];
+//
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let mut current_pt = self.current_pt;
+//
+//         // What would be None?
+//
+//         // What would be Some?
+//     }
+// }

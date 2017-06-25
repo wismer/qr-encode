@@ -1,7 +1,8 @@
 extern crate image as image_lib;
 
-use grid::cell::{Cell, CellValue};
-use grid::traverse::Point;
+use grid::cell::{Cell, CellRef};
+use grid::traverse::{Point, Direction};
+use std::collections::HashMap;
 use grid::image::{create_qr_image};
 
 pub enum QRSection {
@@ -19,6 +20,7 @@ pub struct Row {
 }
 
 pub struct Grid {
+    pub current_pt: Point,
     pub rows: Vec<Row>
 }
 
@@ -57,6 +59,10 @@ impl<'a> Grid {
     }
 
     // PUBLIC
+    pub fn skip_bridge(&self, pt: Point) -> Point {
+        Point { x: pt.x - 1, y: pt.y }
+    }
+
     pub fn get_mut_cell(&mut self, point: &Point) -> Option<&mut Cell> {
         match self.rows.get_mut(point.x) {
             Some(row) => row.cells.get_mut(point.y),
@@ -85,14 +91,14 @@ impl<'a> Grid {
         cell.is_filled = true;
     }
 
-    pub fn get_cell_ref(&self, x: usize, y: usize) -> CellValue {
+    pub fn get_cell_ref(&self, x: usize, y: usize) -> CellRef {
         let cell_ref = match self.rows.get(x) {
             Some(row) => row.cells.get(y),
             None => None
         };
 
         if cell_ref.is_none() {
-            return CellValue::None
+            return CellRef::None
         }
 
         let cell = cell_ref.unwrap();
@@ -100,6 +106,7 @@ impl<'a> Grid {
     }
 
     pub fn get_next_point(&self, point: Point) -> Point {
+        // hashmap key -> direction enum, value -> Vector<[Option<Point>; 3]> ?
         let adjacent_points: Vec<(isize, isize)> = vec![
             (1, 1),
             (1, 0),
@@ -113,10 +120,11 @@ impl<'a> Grid {
                 return false
             } else {
                 let pt = next_point.unwrap();
-
+                // println!("{:?} # {p1} {p2}", next_point=pt, p1=p.0, p2=p.1);
                 let cell_ref = self.get_cell_ref(pt.x, pt.y);
                 match cell_ref {
-                    CellValue::Free(_) => true,
+                    CellRef::Free(_) => true,
+                    CellRef::Bridge(_) => true,
                     _ => false
                 }
             }
@@ -124,28 +132,24 @@ impl<'a> Grid {
 
 
         if best_candidate.is_some() {
-            let next_point = (point >> best_candidate.unwrap()).unwrap();
+            let f = best_candidate.unwrap();
+            let mut next_point = (point >> f).unwrap();
+            next_point = match self.get_cell_ref(next_point.x, next_point.y) {
+                CellRef::Bridge(_) => {
+                    let x = self.skip_bridge(next_point);
+                    println!("{:?} skipped from {:?}", x, next_point);
+                    x
+                },
+                _ => next_point
+            };
             if point ^ next_point {
                 (point << 1).unwrap()
             } else {
                 next_point
             }
         } else {
-            match point + 1 {
-                Some(px) => {
-                    match self.get_cell_ref(px.x, px.y) {
-                        CellValue::Bridge(cell) => {
-                            let bridge_point = cell.as_point();
-                            match bridge_point + 2 {
-                                Some(_) => Point { x: bridge_point.x + 2, y: bridge_point.y },
-                                None => (point << 1).unwrap()
-                            }
-                        },
-                        _ => (point << 1).unwrap()
-                    }
-                },
-                None => (point << 1).unwrap()
-            }
+            println!("CHECK ME OUT");
+            (point << 1).unwrap()
         }
     }
 }
@@ -177,18 +181,58 @@ pub fn encode_byte(grid: &mut Grid, byte: u8, last_position: (usize, usize)) -> 
 pub fn create_grid(size: usize, mask: u8, qr_version: u8, message: String) {
     let rows: Vec<Row> = Vec::new();
     let max = size * size;
-    let mut grid = Grid { rows: rows };
+    let mut grid = Grid {
+        rows: rows,
+        current_pt: Point { x: 48, y: 48 }
+    };
 
     for i in 0..max {
         let x = i / size;
         let y = i % size;
         grid.push(x, y, size);
     }
+
     let mut position = (48, 48);
     for byte in message.into_bytes() {
         position = encode_byte(&mut grid, byte, position);
         println!("{:?}", "bite me");
     }
+    let mut start_points: [(Point, usize, Option<char>); 9] = [
+        (Point { x: 1, y: 1 }, 5, None),
+        (Point { x: 1, y: 43 }, 5, None),
+        (Point { x: 43, y: 1 }, 5, None),
+        (Point { x: 41, y: 0 }, 8, Some('>')),
+        (Point { x: 48, y: 7 }, 8, Some('+')),
+        (Point { x: 0, y: 41 }, 8, Some('-')),
+        (Point { x: 7, y: 0 }, 8, Some('>')),
+        (Point { x: 0, y: 7 }, 8, Some('-')),
+        (Point { x: 7, y: 41 }, 8, Some('>')),
+    ];
+    let mut points = vec![];
+    for coords in (&mut start_points).into_iter() {
+        //let _: () = coords;
+        let (pt, blocks, operator) = *coords;
+
+        println!("{:?}", coords);
+
+        if operator.is_none() {
+            for p in Point::square_points(pt, blocks) {
+                points.push(p);
+            }
+        } else {
+            // stupid_friggin_areas_that_also_need_to_be_white..
+            points.push(pt);
+            Point::line(&mut points, blocks, operator.unwrap());
+        }
+    }
+
+    for point in points {
+        match grid.get_mut_cell(&point) {
+            Some(mut cell) => cell.is_filled = true,
+            None => {}
+        }
+    }
+
 
     create_qr_image(grid);
 }
