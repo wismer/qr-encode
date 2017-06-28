@@ -5,3 +5,4 @@ pub mod traverse;
 pub mod bit;
 pub mod util;
 pub mod image;
+pub mod qr_opts;
