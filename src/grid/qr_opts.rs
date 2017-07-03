@@ -23,7 +23,8 @@ pub struct QROptions {
     pub version: usize,
     pub encoding: u8, // for now - should be its own sub-type.
     pub requires_alignment: bool,
-    pub finder_points: [(usize, usize); 3]
+    pub finder_points: [(usize, usize); 3],
+    pub size: usize
 }
 
 /*

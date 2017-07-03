@@ -92,6 +92,7 @@ fn args() -> QROptions {
         version: version,
         encoding: encoding,
         requires_alignment: version > 1,
+        size: (((version - 1) * 4) + 21),
         finder_points: [
             (0, 0),
             ((square_count(version) - 7) - 1, 0),
@@ -126,6 +127,12 @@ pub struct Cell {
 
 pub struct Point(usize, usize);
 
+impl Point {
+    pub fn idx(&self, size: usize) -> usize {
+        (self.0 * size) + self.1
+    }
+}
+
 struct QR {
     config: QROptions,
     body: Vec<Cell>
@@ -133,7 +140,10 @@ struct QR {
 
 impl QR {
     fn setup(&mut self) {
-        self.config.apply_finder_patterns(&mut self.body);
+        for alignment_point in self.config.finder_points.iter() {
+            self.config.apply_finder_patterns(&mut self.body, *alignment_point);
+            self.config.apply_separators(&mut self.body, *alignment_point);
+        }
     }
 }
 
@@ -155,54 +165,105 @@ impl QROptions {
         rows
     }
 
-    pub fn apply_finder_patterns(&self, body: &mut Vec<Cell>) {
-        let row_length = square_count(self.version) - 1;
-
-        for alignment_point in self.finder_points.iter() {
-            let (mut x, mut y) = *alignment_point;
-            let mut max = 6;
-            while max > 1 {
-                println!("I probably went too far! x: {}, y: {}, row length: {}, max: {}, size: {}", x, y, row_length, max, body.len());
-                let mut cell_steps = max * 4;
-                while cell_steps > 0 {
-                    let idx = (row_length * x) + y;
-                    let cell = body.get_mut(idx);
-                    println!("X: {}, Y: {}", x, y);
-                    match cell {
-                        Some(c) => {
-                            c.module_type = CellType::Finder;
-                            if max == 4 {
-                                c.color = Color { r: 255, g: 255, b: 255 }
-                            }
-                        },
-                        None => panic!("I probably went too far! x: {}, y: {}, row length: {}, max: {}, idx: {}, steps: {}", x * row_length, y, row_length, max, idx, cell_steps)
-                    }
-
-                    if cell_steps > 3 * max {
-                        y += 1;
-                    } else if cell_steps > 2 * max {
-                        x += 1;
-                    } else if cell_steps > max {
-                        y -= 1;
-                    } else {
-                        x -= 1;
-                    }
-
-                    cell_steps -= 1;
-
-                }
-                max -= 2;
-                x += 1;
-                y += 1;
+    pub fn apply_separators(&self, body: &mut Vec<Cell>, alignment_point: (usize, usize)) {
+        let row_len = self.size - 1;
+        let (mut x, mut y) = alignment_point;
+        // x == y Upper left
+        // x < y Upper Right
+        // x > y Lower Left
+        let mut start_x = 0;
+        let mut start_y = 0;
+        let mut end_x = 0;
+        let mut end_y = 0;
+        if x == y {
+            // upper left
+            start_x = 7;
+            end_y = 7;
+        } else if x > y {
+            // lower left
+            start_x = row_len - 8;
+            end_x = row_len;
+            end_y = 7;
+        } else {
+            // upper right
+            start_y = row_len - 8;
+            end_y = row_len;
+            end_x = 7;
+        }
+        x = start_x;
+        y = start_y;
+        loop {
+            let pt = Point(x, y);
+            let idx = pt.idx(self.size - 1);
+            match body.get_mut(idx) {
+                Some(c) => {
+                    c.module_type = CellType::Separator;
+                    c.color = Color { r: 255, g: 255, b: 255 };
+                },
+                None => panic!("dunno idx {} x: {} y: {}", idx, x, y)
             }
-            let cell = body.get_mut((x * row_length) + y);
-            match cell {
-                Some(c) => c.module_type = CellType::Finder,
-                None => {}
+
+            if start_x == end_y && y < end_y {
+                y += 1;
+            } else if end_y == y && x > end_x {
+                x -= 1;
+            } else if end_x > x && start_y > x {
+                x += 1;
+            } else if end_x == x && end_y - 1 > y {
+                y += 1;
+            } else if end_y > y && start_x > y {
+                y += 1;
+            } else if (end_x > 0 && end_x - 1 > x) && end_y == y {
+                x += 1;
+            } else {
+                break;
             }
         }
+    }
 
-        // don't forget to handle center point here
+    pub fn apply_finder_patterns(&self, body: &mut Vec<Cell>, alignment_point: (usize, usize)) {
+        let row_length = square_count(self.version) - 1;
+        let (mut x, mut y) = alignment_point;
+        let mut max = 6;
+        while max > 1 {
+            let mut cell_steps = max * 4;
+            while cell_steps > 0 {
+                let point = Point(x, y);
+                let idx = point.idx(self.size - 1);
+                let cell = body.get_mut(idx);
+                match cell {
+                    Some(c) => {
+                        c.module_type = CellType::Finder;
+                        // change to white
+                        if max == 4 {
+                            c.color = Color { r: 255, g: 255, b: 255 }
+                        }
+                    },
+                    None => panic!("I probably went too far! x: {}, y: {}, row length: {}, max: {}, idx: {}, size: {}", x * row_length, y, row_length, max, idx, self.size)
+                }
+
+                if cell_steps > 3 * max {
+                    y += 1;
+                } else if cell_steps > 2 * max {
+                    x += 1;
+                } else if cell_steps > max {
+                    y -= 1;
+                } else {
+                    x -= 1;
+                }
+
+                cell_steps -= 1;
+
+            }
+            max -= 2;
+            x += 1;
+            y += 1;
+        }
+        let cell = body.get_mut((x * row_length) + y);
+        match cell {
+            Some(c) => c.module_type = CellType::Finder,
+            None => {}
+        }
     }
 }
 
