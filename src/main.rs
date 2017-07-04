@@ -63,7 +63,7 @@ fn args() -> QROptions {
 
     */
     let mut qr_args = args_os();
-    let mut version = 8usize;
+    let mut version = 14usize;
     let mut encoding = 8u8;
     let mut arg = qr_args.next();
 
@@ -113,11 +113,13 @@ pub enum CellType {
     None
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct Color {
     r: u32,
     g: u32,
     b: u32
 }
+
 pub struct Cell {
     pub module_type: CellType,
     pub value: u8,
@@ -125,7 +127,14 @@ pub struct Cell {
     pub color: Color
 }
 
+#[derive(Debug)]
 pub struct Point(usize, usize);
+
+#[derive(Debug)]
+pub struct PlotPoint {
+    pub point: Point,
+    pub color: Color
+}
 
 impl Point {
     pub fn idx(&self, size: usize) -> usize {
@@ -144,6 +153,10 @@ impl QR {
             self.config.apply_finder_patterns(&mut self.body, *alignment_point);
             self.config.apply_separators(&mut self.body, *alignment_point);
         }
+        if self.config.version != 1 {
+            let alignment_points = self.config.get_alignment_points(&self.body);
+            self.config.apply_alignment_patterns(&mut self.body, &alignment_points);
+        }
     }
 }
 
@@ -156,13 +169,90 @@ impl QROptions {
                 let cell = Cell {
                     point: Point(x as usize, y as usize),
                     value: 0,
-                    color: Color { r: 0, g: 0, b: 0 },
+                    color: Color { r: 255, g: 255, b: 255 },
                     module_type: CellType::None
                 };
                 rows.push(cell);
             }
         }
         rows
+    }
+
+    pub fn apply_alignment_patterns(&self, body: &mut Vec<Cell>, points: &Vec<PlotPoint>) {
+        for plot_point in points {
+            let idx = plot_point.point.idx(self.size - 1);
+            match body.get_mut(idx) {
+                Some(cell) => {
+                    cell.module_type = CellType::Alignment;
+                    cell.color = plot_point.color
+                },
+                None => {}
+            }
+        }
+    }
+
+    pub fn get_alignment_points(&self, body: &Vec<Cell>) -> Vec<PlotPoint> {
+        let mut pts: Vec<usize> = vec![];
+        let mut n = 6;
+        // let last_column = self.size - 7;
+        let version_bracket = match self.version {
+            1 => 0,
+            2...7 => 1,
+            7...13 => 2,
+            14...21 => 3,
+            22...28 => 4,
+            29...36 => 5,
+            37...41 => 6,
+            _ => 0
+        };
+
+        let modifier = (self.size - 13) / version_bracket;
+        while n <= self.size - 7 {
+            pts.push(n);
+            if n + modifier >= self.size - 7 {
+                n += modifier - 1;
+            } else {
+                n += modifier;
+            }
+        }
+
+
+        let pts: Vec<PlotPoint> = self.get_point_combinations(pts)
+            .into_iter()
+            .filter(|pt| {
+                let idx = pt.idx(self.size - 1);
+                let cell_ref = body.get(idx);
+                if cell_ref.is_none() {
+                    return false
+                }
+
+                let cell = cell_ref.unwrap();
+                let result = match cell.module_type {
+                    CellType::None => true,
+                    _ => false
+                };
+
+                println!("{:?}, {}", pt, result);
+
+                result
+            })
+            .flat_map(|pt| {
+                self.plot_spiral(&pt, 4)
+            })
+            .collect();
+
+        pts
+    }
+
+    pub fn get_point_combinations(&self, numbers: Vec<usize>) -> Vec<Point> {
+        let mut pairs: Vec<Point> = vec![]; //numbers.iter().map(|n| (*n, *n)).collect();
+        let xnumbers: Vec<usize> = numbers.iter().cloned().collect();
+        for n in numbers {
+            for xn in xnumbers.iter() {
+                pairs.push(Point(n, *xn));
+            }
+        }
+        pairs
     }
 
     pub fn apply_separators(&self, body: &mut Vec<Cell>, alignment_point: (usize, usize)) {
@@ -198,7 +288,7 @@ impl QROptions {
             match body.get_mut(idx) {
                 Some(c) => {
                     c.module_type = CellType::Separator;
-                    c.color = Color { r: 255, g: 255, b: 255 };
+                    c.color = Color { r: 20, g: 255, b: 255 };
                 },
                 None => panic!("dunno idx {} x: {} y: {}", idx, x, y)
             }
@@ -221,6 +311,43 @@ impl QROptions {
         }
     }
 
+    pub fn plot_spiral(&self, origin_pt: &Point, size: usize) -> Vec<PlotPoint> {
+        let mut plot_points: Vec<PlotPoint> = vec![];
+        let mut max = size;
+        let mut depth = 0;
+        let (mut x, mut y) = (origin_pt.0 - 2, origin_pt.1 - 2);
+        while max > 1 {
+            let mut cell_steps = max * 4;
+            let color = match depth % 2 {
+                0 => Color { r: 0, g: 0, b: 0 },
+                _ => Color { r: 255, g: 255, b: 255 },
+            };
+            while cell_steps > 0 {
+                let plot_point = PlotPoint { point: Point(x, y), color: color };
+                // println!("{:?}", color);
+                plot_points.push(plot_point);
+                if cell_steps > 3 * max {
+                    y += 1;
+                } else if cell_steps > 2 * max {
+                    x += 1;
+                } else if cell_steps > max {
+                    y -= 1;
+                } else {
+                    x -= 1;
+                }
+
+                cell_steps -= 1;
+
+            }
+            depth += 1;
+            max -= 2;
+            x += 1;
+            y += 1;
+        }
+        plot_points.push(PlotPoint { point: Point(x, y), color: Color { r: 30, g: 86, b: 240 } });
+        plot_points
+    }
+
     pub fn apply_finder_patterns(&self, body: &mut Vec<Cell>, alignment_point: (usize, usize)) {
         let row_length = square_count(self.version) - 1;
         let (mut x, mut y) = alignment_point;
@@ -235,8 +362,8 @@ impl QROptions {
                     Some(c) => {
                         c.module_type = CellType::Finder;
                         // change to white
-                        if max == 4 {
-                            c.color = Color { r: 255, g: 255, b: 255 }
+                        if max != 4 {
+                            c.color = Color { r: 0, g: 0, b: 0 }
                         }
                     },
                     None => panic!("I probably went too far! x: {}, y: {}, row length: {}, max: {}, idx: {}, size: {}", x * row_length, y, row_length, max, idx, self.size)
@@ -261,19 +388,29 @@ impl QROptions {
         }
         let cell = body.get_mut((x * row_length) + y);
         match cell {
-            Some(c) => c.module_type = CellType::Finder,
+            Some(c) => {
+                c.module_type = CellType::Finder;
+                c.color = Color { r: 0, g: 0, b: 0 };
+            },
             None => {}
         }
     }
 }
 
 fn create_qr_image(qr: QR) {
-    let mut img = ImageBuffer::new(49 * 20, 49 * 20);
+    let mut img = ImageBuffer::new((qr.config.size as u32)  * 20, (qr.config.size as u32) * 20);
     for cell in qr.body {
         for pixel in get_pixel_points(&cell) {
             let (x, y, color) = pixel;
-            let rgb = Rgba { data: [color.r as u8, color.g as u8, color.b as u8, 100] };
-            img.put_pixel(x, y, rgb);
+            if x % 20 == 0 || y % 20 == 0 {
+                let rgb = Rgba { data: [125, 125, 125, 100] };
+                img.put_pixel(x, y, rgb);
+
+            } else {
+                let rgb = Rgba { data: [color.r as u8, color.g as u8, color.b as u8, 100] };
+                img.put_pixel(x, y, rgb);
+
+            }
         }
     }
 
