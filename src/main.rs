@@ -153,10 +153,13 @@ impl QR {
             self.config.apply_finder_patterns(&mut self.body, *alignment_point);
             self.config.apply_separators(&mut self.body, *alignment_point);
         }
+
         if self.config.version != 1 {
             let alignment_points = self.config.get_alignment_points(&self.body);
             self.config.apply_alignment_patterns(&mut self.body, &alignment_points);
         }
+
+        self.config.apply_timer_patterns(&mut self.body);
     }
 }
 
@@ -393,6 +396,39 @@ impl QROptions {
                 c.color = Color { r: 0, g: 0, b: 0 };
             },
             None => {}
+        }
+    }
+
+    pub fn apply_timer_patterns(&self, body: &mut Vec<Cell>) {
+        let (mut x, mut y) = (6, self.size - 8);
+        loop {
+            if x >= self.size - 7 {
+                break;
+            }
+
+            let idx = (x * self.size - 1) + y;
+            match body.get_mut(idx) {
+                Some(cell) => {
+                    match cell.module_type {
+                        CellType::None => {
+                            cell.module_type = CellType::Timing;
+                            if idx % 2 == 0 {
+                                cell.color = Color { r: 0, g: 0, b: 0 };
+                            }
+                        },
+                        _ => {}
+                    }
+                },
+                None => {}
+            }
+            if y > x {
+                y -= 1;
+            } else if y == 7 {
+                y = 6;
+                x = 8;
+            } else {
+                x += 1;
+            }
         }
     }
 }
