@@ -14,93 +14,6 @@ use self::image_lib::{
     Rgba
 };
 
-pub fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
-    let i = (cell.point.0 * 20) as u32;
-    let j = (cell.point.1 * 20) as u32;
-    let mut pixels: Vec<(u32, u32, Color)> = vec![];
-    for row in i..(i + 20) {
-        let x_border = match row % 20 {
-            2...18 => false,
-            _ => true
-        };
-        for col in j..(j + 20) {
-            let y_border = match col % 20 {
-                2...18 => false,
-                _ => true
-            };
-            let color: Color;
-            // let shader = match cell.paths {
-            //     0 => 30,
-            //     1 => 45,
-            //     3 => 90,
-            //     4 => 120,
-            //     _ => 0
-            // };
-            // if x_border || y_border {
-            //     color = Color { r: 125, b: 125, g: 125 };
-            // }
-
-            pixels.push((col, row, Color { g: cell.color.g, b: cell.color.b, r: cell.color.r }));
-        }
-    }
-
-    pixels
-}
-
-fn square_count(version: usize) -> usize {
-    (((version - 1) * 4) + 21)
-}
-
-fn args() -> QROptions {
-    /*
-        default options are....
-            if no version, the default version is 21
-
-
-        to do:
-            flag for encoding type - default will be utf-8 (i think?)
-            ???
-
-    */
-    let mut qr_args = args_os();
-    let mut version = 14usize;
-    let mut encoding = 8u8;
-    let mut arg = qr_args.next();
-
-    while arg.is_some() {
-        let value = arg.unwrap();
-        if value == OsStr::new("-v") {
-            version = match qr_args.next() {
-                Some(n) => {
-                    let x = n.to_str().unwrap().parse::<usize>();
-                    match x {
-                        Ok(nx) if nx < 81 => nx,
-                        Ok(_) => 21usize,
-                        Err(_) => 21usize
-                    }
-                },
-                None => 21usize
-            }
-        }
-
-
-        arg = qr_args.next();
-    }
-
-    println!("version: {}, encoding: {}, square_count: {}", version, encoding, square_count(version));
-    QROptions {
-        version: version,
-        encoding: encoding,
-        requires_alignment: version > 1,
-        size: (((version - 1) * 4) + 21),
-        finder_points: [
-            (0, 0),
-            ((square_count(version) - 7) - 1, 0),
-            (0, (square_count(version) - 7) - 1)
-        ]
-    }
-}
-
 pub enum CellType {
     Finder,
     Alignment,
@@ -136,6 +49,73 @@ pub struct PlotPoint {
     pub color: Color
 }
 
+pub fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
+    let i = (cell.point.0 * 20) as u32;
+    let j = (cell.point.1 * 20) as u32;
+    let mut pixels: Vec<(u32, u32, Color)> = vec![];
+    for row in i..(i + 20) {
+        for col in j..(j + 20) {
+            pixels.push((col, row, Color { g: cell.color.g, b: cell.color.b, r: cell.color.r }));
+        }
+    }
+
+    pixels
+}
+
+fn square_count(version: usize) -> usize {
+    (((version - 1) * 4) + 21)
+}
+
+fn args() -> QROptions {
+    /*
+        default options are....
+            if no version, the default version is 21
+
+
+        to do:
+            flag for encoding type - default will be utf-8 (i think?)
+            ???
+
+    */
+    let mut qr_args = args_os();
+    let mut version = 14usize;
+    let mut arg = qr_args.next();
+
+    while arg.is_some() {
+        let value = arg.unwrap();
+        if value == OsStr::new("-v") {
+            version = match qr_args.next() {
+                Some(n) => {
+                    let x = n.to_str().unwrap().parse::<usize>();
+                    match x {
+                        Ok(nx) if nx < 81 => nx, // if it fails to parse, or parses a number greater than 81, set it to version 21.
+                        Ok(_) => 21usize,
+                        Err(_) => 21usize
+                    }
+                },
+                None => 21usize
+            }
+        }
+
+
+        arg = qr_args.next();
+    }
+
+    QROptions {
+        version: version,
+        encoding: 8u8,
+        requires_alignment: version > 1,
+        size: (((version - 1) * 4) + 21),
+        finder_points: [
+            (0, 0),
+            ((square_count(version) - 7) - 1, 0),
+            (0, (square_count(version) - 7) - 1)
+        ]
+    }
+}
+
+
+
 impl Point {
     pub fn idx(&self, size: usize) -> usize {
         (self.0 * size) + self.1
@@ -150,7 +130,8 @@ struct QR {
 impl QR {
     fn setup(&mut self) {
         for alignment_point in self.config.finder_points.iter() {
-            self.config.apply_finder_patterns(&mut self.body, *alignment_point);
+            let point = Point(alignment_point.0, alignment_point.1);
+            self.config.apply_finder_patterns(&mut self.body, point);
             self.config.apply_separators(&mut self.body, *alignment_point);
         }
 
@@ -160,13 +141,14 @@ impl QR {
         }
 
         self.config.apply_timer_patterns(&mut self.body);
+        println!("LENGTH IS {}, SIZE IS {}", self.body.len(), self.config.size);
     }
 }
 
 impl QROptions {
     pub fn create_body(&self) -> Vec<Cell> {
         let mut rows: Vec<Cell> = vec![];
-        let row_len = square_count(self.version) - 1;
+        let row_len = self.size - 1;
         for x in 0..row_len {
             for y in 0..row_len {
                 let cell = Cell {
@@ -212,11 +194,7 @@ impl QROptions {
         let modifier = (self.size - 13) / version_bracket;
         while n <= self.size - 7 {
             pts.push(n);
-            if n + modifier >= self.size - 7 {
-                n += modifier - 1;
-            } else {
-                n += modifier;
-            }
+            n += modifier;
         }
 
 
@@ -240,7 +218,7 @@ impl QROptions {
                 result
             })
             .flat_map(|pt| {
-                self.plot_spiral(&pt, 4)
+                self.plot_spiral(&pt, 4, 2)
             })
             .collect();
 
@@ -251,7 +229,7 @@ impl QROptions {
         let mut pairs: Vec<Point> = vec![]; //numbers.iter().map(|n| (*n, *n)).collect();
         let xnumbers: Vec<usize> = numbers.iter().cloned().collect();
         for n in numbers {
-            for xn in xnumbers.iter() {
+            for xn in xnumbers.iter() { // can I use the same vec inside its iteration?
                 pairs.push(Point(n, *xn));
             }
         }
@@ -314,11 +292,11 @@ impl QROptions {
         }
     }
 
-    pub fn plot_spiral(&self, origin_pt: &Point, size: usize) -> Vec<PlotPoint> {
+    pub fn plot_spiral(&self, origin_pt: &Point, size: usize, diff: usize) -> Vec<PlotPoint> {
         let mut plot_points: Vec<PlotPoint> = vec![];
         let mut max = size;
         let mut depth = 0;
-        let (mut x, mut y) = (origin_pt.0 - 2, origin_pt.1 - 2);
+        let (mut x, mut y) = (origin_pt.0 - diff, origin_pt.1 - diff);
         while max > 1 {
             let mut cell_steps = max * 4;
             let color = match depth % 2 {
@@ -327,7 +305,6 @@ impl QROptions {
             };
             while cell_steps > 0 {
                 let plot_point = PlotPoint { point: Point(x, y), color: color };
-                // println!("{:?}", color);
                 plot_points.push(plot_point);
                 if cell_steps > 3 * max {
                     y += 1;
@@ -347,55 +324,21 @@ impl QROptions {
             x += 1;
             y += 1;
         }
+        // center cell
         plot_points.push(PlotPoint { point: Point(x, y), color: Color { r: 30, g: 86, b: 240 } });
         plot_points
     }
 
-    pub fn apply_finder_patterns(&self, body: &mut Vec<Cell>, alignment_point: (usize, usize)) {
-        let row_length = square_count(self.version) - 1;
-        let (mut x, mut y) = alignment_point;
-        let mut max = 6;
-        while max > 1 {
-            let mut cell_steps = max * 4;
-            while cell_steps > 0 {
-                let point = Point(x, y);
-                let idx = point.idx(self.size - 1);
-                let cell = body.get_mut(idx);
-                match cell {
-                    Some(c) => {
-                        c.module_type = CellType::Finder;
-                        // change to white
-                        if max != 4 {
-                            c.color = Color { r: 0, g: 0, b: 0 }
-                        }
-                    },
-                    None => panic!("I probably went too far! x: {}, y: {}, row length: {}, max: {}, idx: {}, size: {}", x * row_length, y, row_length, max, idx, self.size)
-                }
-
-                if cell_steps > 3 * max {
-                    y += 1;
-                } else if cell_steps > 2 * max {
-                    x += 1;
-                } else if cell_steps > max {
-                    y -= 1;
-                } else {
-                    x -= 1;
-                }
-
-                cell_steps -= 1;
-
+    pub fn apply_finder_patterns(&self, body: &mut Vec<Cell>, alignment_point: Point) {
+        for plot_point in self.plot_spiral(&alignment_point, 6, 0) {
+            let idx = plot_point.point.idx(self.size - 1);
+            match body.get_mut(idx) {
+                Some(cell) => {
+                    cell.module_type = CellType::Finder;
+                    cell.color = plot_point.color
+                },
+                None => {}
             }
-            max -= 2;
-            x += 1;
-            y += 1;
-        }
-        let cell = body.get_mut((x * row_length) + y);
-        match cell {
-            Some(c) => {
-                c.module_type = CellType::Finder;
-                c.color = Color { r: 0, g: 0, b: 0 };
-            },
-            None => {}
         }
     }
 
@@ -405,14 +348,19 @@ impl QROptions {
             if x >= self.size - 7 {
                 break;
             }
-
-            let idx = (x * self.size - 1) + y;
+            let pt = Point(x, y);
+            let idx = pt.idx(self.size - 1);
             match body.get_mut(idx) {
                 Some(cell) => {
                     match cell.module_type {
                         CellType::None => {
+                            let direction = if y > x {
+                                y
+                            } else {
+                                x
+                            };
                             cell.module_type = CellType::Timing;
-                            if idx % 2 == 0 {
+                            if direction % 2 == 0 {
                                 cell.color = Color { r: 0, g: 0, b: 0 };
                             }
                         },
@@ -434,34 +382,28 @@ impl QROptions {
 }
 
 fn create_qr_image(qr: QR) {
-    let mut img = ImageBuffer::new((qr.config.size as u32)  * 20, (qr.config.size as u32) * 20);
+    let dimensions: u32 = (qr.config.size) as u32;
+    let mut img = ImageBuffer::new(dimensions * 20, dimensions * 20);
     for cell in qr.body {
         for pixel in get_pixel_points(&cell) {
             let (x, y, color) = pixel;
             if x % 20 == 0 || y % 20 == 0 {
+                // cell border
                 let rgb = Rgba { data: [125, 125, 125, 100] };
                 img.put_pixel(x, y, rgb);
-
             } else {
                 let rgb = Rgba { data: [color.r as u8, color.g as u8, color.b as u8, 100] };
                 img.put_pixel(x, y, rgb);
-
             }
         }
     }
 
     let ref mut fout = File::create(&Path::new("qr.png")).unwrap();
-    // img.save();
     let _ = image_lib::ImageRgba8(img).save(fout, image_lib::PNG);
-
-    // let _ = image_lib::ImageRgb8(img).save(fout, image_lib::PNG);
 }
 
 
 fn main() {
-    let qr_version = 1;
-    let size = 49;
-    let message = String::from("www.wikipedia.org - here you can find junk and stuff and whatever and some things of greater importance i just want a longer byte length please thanks");
     let opts: QROptions = args();
     let mut qr: QR = QR {
         body: opts.create_body(),
@@ -469,8 +411,4 @@ fn main() {
     };
     qr.setup();
     create_qr_image(qr);
-
-
-    // args();
-    // create_grid(size, 2, qr_version, message);
 }
