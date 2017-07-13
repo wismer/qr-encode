@@ -108,8 +108,8 @@ fn args() -> QROptions {
         size: (((version - 1) * 4) + 21),
         finder_points: [
             (0, 0),
-            ((square_count(version) - 7) - 1, 0),
-            (0, (square_count(version) - 7) - 1)
+            ((square_count(version) - 7), 0),
+            (0, (square_count(version) - 7))
         ]
     }
 }
@@ -148,7 +148,7 @@ impl QR {
 impl QROptions {
     pub fn create_body(&self) -> Vec<Cell> {
         let mut rows: Vec<Cell> = vec![];
-        let row_len = self.size - 1;
+        let row_len = self.size;
         for x in 0..row_len {
             for y in 0..row_len {
                 let cell = Cell {
@@ -165,7 +165,7 @@ impl QROptions {
 
     pub fn apply_alignment_patterns(&self, body: &mut Vec<Cell>, points: &Vec<PlotPoint>) {
         for plot_point in points {
-            let idx = plot_point.point.idx(self.size - 1);
+            let idx = plot_point.point.idx(self.size);
             match body.get_mut(idx) {
                 Some(cell) => {
                     cell.module_type = CellType::Alignment;
@@ -191,7 +191,7 @@ impl QROptions {
             _ => 0
         };
 
-        let modifier = (self.size - 13) / version_bracket;
+        let modifier = (self.size - 12) / version_bracket;
         while n <= self.size - 7 {
             pts.push(n);
             n += modifier;
@@ -201,7 +201,7 @@ impl QROptions {
         let pts: Vec<PlotPoint> = self.get_point_combinations(pts)
             .into_iter()
             .filter(|pt| {
-                let idx = pt.idx(self.size - 1);
+                let idx = pt.idx(self.size);
                 let cell_ref = body.get(idx);
                 if cell_ref.is_none() {
                     return false
@@ -237,7 +237,7 @@ impl QROptions {
     }
 
     pub fn apply_separators(&self, body: &mut Vec<Cell>, alignment_point: (usize, usize)) {
-        let row_len = self.size - 1;
+        let row_len = self.size;
         let (mut x, mut y) = alignment_point;
         // x == y Upper left
         // x < y Upper Right
@@ -265,7 +265,7 @@ impl QROptions {
         y = start_y;
         loop {
             let pt = Point(x, y);
-            let idx = pt.idx(self.size - 1);
+            let idx = pt.idx(self.size);
             match body.get_mut(idx) {
                 Some(c) => {
                     c.module_type = CellType::Separator;
@@ -331,7 +331,7 @@ impl QROptions {
 
     pub fn apply_finder_patterns(&self, body: &mut Vec<Cell>, alignment_point: Point) {
         for plot_point in self.plot_spiral(&alignment_point, 6, 0) {
-            let idx = plot_point.point.idx(self.size - 1);
+            let idx = plot_point.point.idx(self.size);
             match body.get_mut(idx) {
                 Some(cell) => {
                     cell.module_type = CellType::Finder;
@@ -349,7 +349,7 @@ impl QROptions {
                 break;
             }
             let pt = Point(x, y);
-            let idx = pt.idx(self.size - 1);
+            let idx = pt.idx(self.size);
             match body.get_mut(idx) {
                 Some(cell) => {
                     match cell.module_type {
