@@ -79,6 +79,7 @@ fn args() -> QROptions {
     */
     let mut qr_args = args_os();
     let mut version = 14usize;
+    let encoding = 8u8;
     let mut arg = qr_args.next();
 
     while arg.is_some() {
@@ -127,7 +128,7 @@ struct QR {
     body: Vec<Cell>
 }
 
-impl QR {
+impl  QR {
     fn setup(&mut self) {
         for alignment_point in self.config.finder_points.iter() {
             let point = Point(alignment_point.0, alignment_point.1);
@@ -141,11 +142,69 @@ impl QR {
         }
 
         self.config.apply_timer_patterns(&mut self.body);
+        self.config.apply_dark_module(&mut self.body);
+        self.config.reserve_format_areas(&mut self.body);
+
+        if self.config.version > 6 {
+            // version information area
+        }
         println!("LENGTH IS {}, SIZE IS {}", self.body.len(), self.config.size);
     }
 }
 
 impl QROptions {
+    pub fn reserve_format_areas(&self, body: &mut Vec<Cell>) {
+        let mut vertical = Point(0, 8);
+        let mut horizontal = Point(8, 0);
+
+        while horizontal.1 < self.size {
+            let idx = horizontal.idx(self.size);
+            match body.get_mut(idx) {
+                Some(cell) => {
+                    cell.module_type = CellType::Format;
+                    cell.color = Color { r: 10, g: 140, b: 230 };
+                },
+                None => {}
+            }
+
+            if horizontal.1 > 7 && horizontal.1 < self.size - 8 {
+                horizontal = Point(8, self.size - 8);
+            } else {
+                horizontal = Point(8, horizontal.1 + 1);
+            }
+        }
+
+        while vertical.0 < self.size {
+            let idx = vertical.idx(self.size);
+            match body.get_mut(idx) {
+                Some(cell) => {
+                    cell.module_type = CellType::Format;
+                    cell.color = Color { r: 10, g: 140, b: 230 };
+                },
+                None => {}
+            }
+
+            if vertical.0 > 7 && vertical.0 < self.size - 8 {
+                vertical = Point(self.size - 8, 8);
+            } else {
+                vertical = Point(vertical.0 + 1, 8);
+            }
+        }
+
+    }
+
+    pub fn apply_dark_module(&self, body: &mut Vec<Cell>) {
+        let dark_module_coord = Point((4 * self.version) + 9, 8);
+        let idx = dark_module_coord.idx(self.size);
+        match body.get_mut(idx) {
+            Some(cell) => {
+                cell.module_type = CellType::DarkModule;
+                cell.color = Color { r: 255, b: 233, g: 20 }
+            },
+            None => {}
+        }
+    }
+
     pub fn create_body(&self) -> Vec<Cell> {
         let mut rows: Vec<Cell> = vec![];
         let row_len = self.size;
@@ -410,5 +469,6 @@ fn main() {
         config: opts
     };
     qr.setup();
+    // qr.encode_data(opts);
     create_qr_image(qr);
 }
