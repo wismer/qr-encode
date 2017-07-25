@@ -20,6 +20,7 @@ pub enum CellType {
     Separator,
     Timing,
     DarkModule,
+    VersionInformation,
     Format,
     Free,
     Message,
@@ -145,14 +146,46 @@ impl  QR {
         self.config.apply_dark_module(&mut self.body);
         self.config.reserve_format_areas(&mut self.body);
 
+        // version information area
         if self.config.version > 6 {
-            // version information area
+            self.config.apply_version_information_areas(&mut self.body);
         }
+
         println!("LENGTH IS {}, SIZE IS {}", self.body.len(), self.config.size);
     }
 }
 
 impl QROptions {
+    pub fn apply_version_information_areas(&self, body: &mut Vec<Cell>) {
+        let mut x = self.size - 11;
+        let mut y = 0;
+        let mut blocks = 6 * 3;
+        while blocks > 0 {
+            let indices: [usize; 2] = [
+                Point(x, y).idx(self.size),
+                Point(y, x).idx(self.size)
+            ];
+            for index in indices.into_iter() {
+                match body.get_mut(*index) {
+                    Some(cell) => {
+                        cell.module_type = CellType::VersionInformation;
+                        cell.color = Color { r: 200, g: 200, b: 123 };
+                    },
+                    None => {}
+                }
+
+            }
+
+            if y < 5 {
+                y += 1;
+            } else {
+                y = 0;
+                x += 1;
+            }
+            blocks -= 1;
+        }
+    }
+
     pub fn reserve_format_areas(&self, body: &mut Vec<Cell>) {
         let mut vertical = Point(0, 8);
         let mut horizontal = Point(8, 0);
