@@ -494,6 +494,53 @@ fn create_qr_image(qr: QR) {
     let _ = image_lib::ImageRgba8(img).save(fout, image_lib::PNG);
 }
 
+impl QR {
+    fn encode_bit(&mut self, idx: usize, bit: u8) -> bool {
+        let cell_ref = self.body.get_mut(idx);
+
+        if cell_ref.is_none() {
+            return false
+        }
+
+        let mut cell = cell_ref.unwrap();
+        match cell.module_type {
+            CellType::None => {
+                cell.module_type = CellType::Message;
+                if bit == 0 {
+                    cell.color = Color { r: 0, g: 0, b: 0 };
+                } else {
+                    cell.color = Color { r: 24, g: 210, b: 100 };
+                }
+                true
+            },
+            _ => false
+        }
+    }
+
+    pub fn encode_chunk(&mut self, chunk: u8, position: usize) -> usize {
+        let mut current_pt = position;
+        let mut prev_position = position;
+        for i in 0..8 {
+            let bit = chunk & (1 << i);
+            prev_position = current_pt;
+
+            let did_encode = self.encode_bit(current_pt, bit);
+
+            if !did_encode {
+                continue;
+            }
+
+            if i % 2 == 0 {
+                current_pt = current_pt - 1;
+            } else {
+                current_pt = current_pt - (self.config.size - 1);
+            }
+        }
+
+        current_pt
+    }
+}
+
 
 fn main() {
     let opts: QROptions = args();
@@ -502,6 +549,12 @@ fn main() {
         config: opts
     };
     qr.setup();
-    // qr.encode_data(opts);
+
+    let sample = "\'It Was the Best of times, it was the Blurst of times??\'".to_string();
+    let mut position = (qr.config.size * qr.config.size) - 1;
+    for s in sample.into_bytes().into_iter() {
+        position = qr.encode_chunk(s, position);
+    }
+
     create_qr_image(qr);
 }
