@@ -14,6 +14,20 @@ use self::image_lib::{
     Rgba
 };
 
+pub enum CellFlow {
+    OutOfBounds,
+    Unavailable,
+    Available(usize)
+}
+
+pub enum Direction {
+    Upwards,
+    Leftwards,
+    Downwards,
+    Unique(Box<Direction>)
+}
+
+#[derive(Debug)]
 pub enum CellType {
     Finder,
     Alignment,
@@ -34,6 +48,7 @@ pub struct Color {
     b: u32
 }
 
+#[derive(Debug)]
 pub struct Cell {
     pub module_type: CellType,
     pub value: u8,
@@ -119,14 +134,28 @@ fn args() -> QROptions {
 
 
 impl Point {
+    pub fn as_point(idx: usize, size: usize) -> Point {
+        Point(idx / size, idx % size)
+    }
+
     pub fn idx(&self, size: usize) -> usize {
         (self.0 * size) + self.1
     }
+
+    // pub fn vertical_edge(&self, size: usize) -> bool {
+    //
+    // }
+    //
+    // pub fn horizontal_edge(&self, size: usize) -> bool {
+    //     self.
+    // }
+    //
 }
 
 struct QR {
     config: QROptions,
-    body: Vec<Cell>
+    body: Vec<Cell>,
+    encoding_direction: Direction
 }
 
 impl  QR {
@@ -305,7 +334,7 @@ impl QROptions {
                     _ => false
                 };
 
-                println!("{:?}, {}", pt, result);
+                // println!("{:?}, {}", pt, result);
 
                 result
             })
@@ -473,6 +502,21 @@ impl QROptions {
     }
 }
 
+fn set_color(index: usize) -> Color {
+    // temporarily color the cells as a kind of debugging
+    match index {
+        0 => Color { r: 255, g: 120, b: 16 },
+        1 => Color { r: 205, g: 120, b: 16 },
+        2 => Color { r: 155, g: 120, b: 16 },
+        3 => Color { r: 105, g: 120, b: 16 },
+        4 => Color { r: 55, g: 120, b: 16 },
+        5 => Color { r: 5, g: 120, b: 16 },
+        6 => Color { r: 255, g: 175, b: 16 },
+        7 => Color { r: 0, g: 0, b: 0 },
+        _ => Color { r: 255, g: 255, b: 0 }
+    }
+}
+
 fn create_qr_image(qr: QR) {
     let dimensions: u32 = (qr.config.size) as u32;
     let mut img = ImageBuffer::new(dimensions * 20, dimensions * 20);
@@ -495,46 +539,75 @@ fn create_qr_image(qr: QR) {
 }
 
 impl QR {
-    fn encode_bit(&mut self, idx: usize, bit: u8) -> bool {
-        let cell_ref = self.body.get_mut(idx);
+    fn get_next_point(&self, current_idx: usize) -> usize {
+        let mut current_pt = Point::as_point(current_idx, self.config.size);
+        let row_length = self.config.size - 1;
+        let mut pos = current_idx;
 
-        if cell_ref.is_none() {
-            return false
+        if current_pt.1 == row_length {
+            current_pt = Point(current_pt.0, current_pt.1 - 1);
+        } else if current_pt.0 == row_length {
+            current_pt = Point(current_pt.0 - 1, current_pt.1);
+        } else {
+            current_pt = Point(current_pt.0 - 1, current_pt.1 + 1);
         }
 
-        let mut cell = cell_ref.unwrap();
+        current_pt.idx(self.config.size)
+    }
+
+    fn check_point(&self, idx: usize) -> CellFlow {
+        let cell_ref = self.body.get(idx);
+
+        if cell_ref.is_none() {
+            return CellFlow::OutOfBounds
+        }
+
+        let cell = cell_ref.unwrap();
+        let pos = cell.point.idx(self.config.size);
         match cell.module_type {
-            CellType::None => {
-                cell.module_type = CellType::Message;
-                if bit == 0 {
-                    cell.color = Color { r: 0, g: 0, b: 0 };
-                } else {
-                    cell.color = Color { r: 24, g: 210, b: 100 };
-                }
-                true
-            },
-            _ => false
+            CellType::None => CellFlow::Available(pos),
+            _ => CellFlow::Unavailable
         }
     }
 
     pub fn encode_chunk(&mut self, chunk: u8, position: usize) -> usize {
         let mut current_pt = position;
-        let mut prev_position = position;
+        let row_length = self.config.size - 1;
         for i in 0..8 {
             let bit = chunk & (1 << i);
-            prev_position = current_pt;
+            let color = set_color(i);
+            // let did_encode = self.encode_bit(current_pt, bit, color);
 
-            let did_encode = self.encode_bit(current_pt, bit);
+            match self.check_point(current_pt) {
+                CellFlow::Available(pos) => {
+                    let mut cell = self.body.get_mut(pos).unwrap();
+                    cell.module_type = CellType::Message;
 
-            if !did_encode {
-                continue;
+                    if bit == 0 {
+                        cell.color = Color { r: color.r, g: color.g, b: color.b + 100 };
+                    } else {
+                        cell.color = color;
+                    }
+                },
+                CellFlow::Unavailable => {
+                    current_pt = (current_pt - 1) + row_length;
+                    println!("Unavailable");
+                    // current_pt = self.get_next_point(current_pt);
+                    continue;
+                    // handle changing flow
+                },
+                _ => {
+                    continue;
+                }
             }
 
-            if i % 2 == 0 {
-                current_pt = current_pt - 1;
-            } else {
-                current_pt = current_pt - (self.config.size - 1);
-            }
+            // if i % 2 == 0 {
+            //     current_pt = current_pt - 1;
+            // } else {
+            //     current_pt = current_pt - (self.config.size - 1);
+            // }
+            println!("current_pt: {}", current_pt);
+            current_pt = self.get_next_point(current_pt);
         }
 
         current_pt
@@ -546,7 +619,8 @@ fn main() {
     let opts: QROptions = args();
     let mut qr: QR = QR {
         body: opts.create_body(),
-        config: opts
+        config: opts,
+        encoding_direction: Direction::Upwards
     };
     qr.setup();
 
