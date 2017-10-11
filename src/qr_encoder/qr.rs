@@ -4,6 +4,7 @@ use qr_encoder::cell::{
     CellType,
     Color,
     PlotPoint,
+    CellContext,
     CellFlow
 };
 use qr_encoder::util::{set_color};
@@ -29,6 +30,21 @@ pub enum Direction {
     Downwards,
     Unique(Box<Direction>)
 }
+
+pub enum EncoderEvent {
+    ZigZag, // normal behavior
+    OffEdge, // hit's an edge.
+    FinderBlock, // hits the finder
+    TracerBlock, // tracer
+    AlignmentBlock, // alignment
+    EndOfEncode // etc
+}
+
+
+const CELL_INVALID: u8 = 0;
+const CELL_FIXTURE: u8 = 1;
+const CELL_AVAILABLE: u8 = 3;
+const CELL_MIXED: u8 = 2;
 
 impl QROptions {
     pub fn apply_version_information_areas(&self, body: &mut Vec<Cell>) {
@@ -366,62 +382,175 @@ impl QR {
         current_pt.idx(self.config.size)
     }
 
-    fn check_point(&self, idx: usize) -> CellFlow {
-        let cell_ref = self.body.get(idx);
-
-        if cell_ref.is_none() {
-            return CellFlow::OutOfBounds
-        }
-
-        let cell = cell_ref.unwrap();
-        let pos = cell.point.idx(self.config.size);
-        match cell.module_type {
-            CellType::None => CellFlow::Available(pos),
-            _ => CellFlow::Unavailable
-        }
-    }
+    // fn check_point(&self, idx: usize) -> CellFlow {
+    //     let cell_ref = self.body.get(idx);
+    //
+    //     if cell_ref.is_none() {
+    //         return CellFlow::OutOfBounds
+    //     }
+    //
+    //     let cell = cell_ref.unwrap();
+    //     let pos = cell.point.idx(self.config.size);
+    //     match cell.module_type {
+    //         CellType::None => CellFlow::Available(pos),
+    //         _ => CellFlow::Unavailable
+    //     }
+    // }
 
     pub fn encode_chunk(&mut self, chunk: u8, position: usize) -> usize {
-        let mut current_pt = position;
+        let mut current_index = position;
         let row_length = self.config.size - 1;
+        let corners: [(isize, isize); 4] = [
+            (-1, 1),
+            (1, 1),
+            (-1, -1),
+            (1, -1)
+        ];
+
         for i in 0..8 {
+            let mut checking = true;
+            let mut current_point: Point = Point::as_point(current_index, self.config.size);
             let bit = chunk & (1 << i);
             let color = set_color(i);
-            // let did_encode = self.encode_bit(current_pt, bit, color);
+            let mut corner_idx = 0;
 
-            match self.check_point(current_pt) {
-                CellFlow::Available(pos) => {
-                    let mut cell = self.body.get_mut(pos).unwrap();
+            match self.body.get_mut(current_index) {
+                Some(cell) => {
+                    // println!("{:?}", cell);
                     cell.module_type = CellType::Message;
 
-                    if bit == 0 {
-                        cell.color = Color { r: color.r, g: color.g, b: color.b + 100 };
+                    if i == 7 {
+                        cell.color = Color { r: 0, g: 0, b: 0 };
                     } else {
                         cell.color = color;
                     }
                 },
-                CellFlow::Unavailable => {
-                    current_pt = (current_pt - 1) + row_length;
-                    println!("Unavailable");
-                    // current_pt = self.get_next_point(current_pt);
-                    continue;
-                    // handle changing flow
-                },
-                _ => {
-                    continue;
+                None => {
+                    println!("this should never happen {:?}", current_point);
+                }
+            }
+            let mut cell_context = 0;
+
+            let mut check_ahead = false;
+            while checking && corner_idx < 4 {
+                let corner = if check_ahead {
+                    check_ahead = false;
+                    let prev_corner = corners[corner_idx];
+                    if prev_corner.0 == -1 {
+                        (prev_corner.0 - 8, prev_corner.1)
+                    } else {
+                        (prev_corner.0 + 8, prev_corner.1)
+                    }
+                } else {
+                    corners[corner_idx]
+                };
+
+                let next_point = current_point >> corner;
+                let cell_state: u8 = 0;
+                if next_point.1 >= self.config.size {
+                    // off edge....
+                    current_index = current_index - 1;
+                    checking = false;
+                } else {
+                    let next_idx = next_point.idx(self.config.size);
+                    let cell_ref = self.body.get(next_idx);
+                    if cell_ref.is_none() {
+                        current_index = current_index - 1;
+                        break;
+                    }
+                    let cell = cell_ref.unwrap();
+
+                    println!("current_point: {:?}, next_point: {:?}, {:?}, corner: {}, cell_context: {}", current_point, next_point, cell, corner_idx, cell_context);
+                    match cell.module_type {
+                        CellType::None => {
+                            if corner_idx == 3 || corner_idx == 2 {
+                                current_index = current_index - 1;
+                            } else {
+                                current_index = next_idx;
+                            }
+                            checking = false;
+                        },
+
+                        CellType::Finder => {
+                            checking = false;
+                            current_index = current_index - 1;
+                        },
+
+                        CellType::Format => {
+                            corner_idx += 1;
+                        },
+
+                        CellType::Separator => {
+                            checking = false;
+                            current_index = current_index - 1;
+                        },
+
+                        CellType::Message => {
+                            cell_context = cell_context ^ (1 << corner_idx);
+                            corner_idx += 1;
+                        },
+
+                        CellType::Alignment => {
+                            corner_idx += 1;
+                            check_ahead = true;
+
+                            // if #4 of corners is a message block, then it's building upwards
+                            // if #2 of
+                            // notes for future matt:
+                            // have a way to get the context of the current position -
+                            // are the blocks being built in a particular direction when they encounter
+                            // few options for movement?
+                            // i.e. take a look at `corner` or maybe separate the north/south exams
+                        },
+
+                        _ => {
+                            corner_idx += 1;
+                        }
+                    }
                 }
             }
 
-            // if i % 2 == 0 {
-            //     current_pt = current_pt - 1;
-            // } else {
-            //     current_pt = current_pt - (self.config.size - 1);
+            if checking && corner_idx == 4 {
+                current_index = current_index - 1;
+            }
+
+            // if left_is_free_and_upper_left_is_free_then_go_left
+            // if left_is_free_and_lower_left_is_free_then_go_left
+            // let did_encode = self.encode_bit(current_pt, bit, color);
+
+            // match self.check_point(current_pt) {
+            //     CellFlow::Available(pos) => {
+            //         let mut cell = self.body.get_mut(pos).unwrap();
+            //         cell.module_type = CellType::Message;
+            //
+            //         if bit == 0 {
+            //             cell.color = Color { r: color.r, g: color.g, b: color.b + 100 };
+            //         } else {
+            //             cell.color = color;
+            //         }
+            //     },
+            //     CellFlow::Unavailable => {
+            //         current_pt = (current_pt - 1) + row_length;
+            //         println!("Unavailable");
+            //         // current_pt = self.get_next_point(current_pt);
+            //         continue;
+            //         // handle changing flow
+            //     },
+            //     _ => {
+            //         continue;
+            //     }
             // }
-            println!("current_pt: {}", current_pt);
-            current_pt = self.get_next_point(current_pt);
+            //
+            // // if i % 2 == 0 {
+            // //     current_pt = current_pt - 1;
+            // // } else {
+            // //     current_pt = current_pt - (self.config.size - 1);
+            // // }
+            // println!("current_pt: {}", current_pt);
+            // current_pt = self.get_next_point(current_pt);
         }
 
-        current_pt
+        current_index
     }
 
     pub fn setup(&mut self) {
@@ -446,5 +575,6 @@ impl QR {
         }
 
         println!("LENGTH IS {}, SIZE IS {}", self.body.len(), self.config.size);
+        println!("--- QR ENCODER READY FOR ENCODING ---");
     }
 }

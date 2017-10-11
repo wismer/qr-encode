@@ -21,10 +21,10 @@ fn create_qr_image(qr: QR) {
             let (x, y, color) = pixel;
             if x % 20 == 0 || y % 20 == 0 {
                 // cell border
-                let rgb = Rgba { data: [125, 125, 125, 100] };
+                let rgb = Rgba { data: [125, 125, 125, 255] };
                 img.put_pixel(x, y, rgb);
             } else {
-                let rgb = Rgba { data: [color.r as u8, color.g as u8, color.b as u8, 100] };
+                let rgb = Rgba { data: [color.r as u8, color.g as u8, color.b as u8, 255] };
                 img.put_pixel(x, y, rgb);
             }
         }
@@ -45,8 +45,9 @@ fn main() {
     qr.setup();
 
     let sample = "\'It Was the Best of times, it was the Blurst of times??\'".to_string();
+    let small_sample = "s".to_string();
     let mut position = (qr.config.size * qr.config.size) - 1;
-    for s in sample.into_bytes().into_iter() {
+    for s in small_sample.into_bytes().into_iter() {
         position = qr.encode_chunk(s, position);
     }
 

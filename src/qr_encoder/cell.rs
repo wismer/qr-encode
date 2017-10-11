@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub, Mul, Div};
+use std::ops::{Shr, Add, Sub, Mul, Div};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Color {
@@ -16,8 +16,14 @@ pub enum CellType {
     DarkModule,
     VersionInformation,
     Format,
-    Free,
     Message,
+    None
+}
+
+#[derive(Debug)]
+pub enum CellContext {
+    Fixture(usize),
+    ValidCell(usize),
     None
 }
 
@@ -92,6 +98,22 @@ impl Div<usize> for Point {
 
     fn div(self, rhs: usize) -> Point {
         Point(self.0 - 1, self.1)
+    }
+}
+
+impl Shr<(isize, isize)> for Point {
+    type Output = Point;
+
+    fn shr(self, rhs: (isize, isize)) -> Point {
+        let (rx, ry) = rhs;
+        let x = (self.0 as isize) + rx;
+        let y = (self.1 as isize) + ry;
+
+        if x < 0 || y < 0 {
+            Point(0, 0)
+        } else {
+            Point(x as usize, y as usize)
+        }
     }
 }
 
