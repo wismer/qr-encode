@@ -1,7 +1,7 @@
 
 pub mod qr_encoder;
 extern crate image as image_lib;
-use qr_encoder::qr::{QROptions, QR, Direction};
+use qr_encoder::qr::{QROptions, QR};
 use qr_encoder::util::{get_pixel_points, square_count, args};
 
 use std::fs::File;
@@ -39,15 +39,13 @@ fn main() {
     let opts: QROptions = args();
     let mut qr: QR = QR {
         body: opts.create_body(),
-        config: opts,
-        encoding_direction: Direction::Upwards
+        config: opts
     };
     qr.setup();
 
     let sample = "\'It Was the Best of times, it was the Blurst of times??\'".to_string();
-    let small_sample = "s".to_string();
     let mut position = (qr.config.size * qr.config.size) - 1;
-    for s in small_sample.into_bytes().into_iter() {
+    for s in sample.into_bytes().into_iter() {
         position = qr.encode_chunk(s, position);
     }
 
