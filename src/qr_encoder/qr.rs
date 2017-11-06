@@ -63,6 +63,24 @@ fn lead_bit_position(n: u8) -> u8 {
 }
 
 impl QROptions {
+    pub fn create_body(&self) -> Vec<Cell> {
+        // this can be refactored so it just iterates going from 0 to max-index
+        let mut rows: Vec<Cell> = vec![];
+        let row_len = self.size;
+        for x in 0..row_len {
+            for y in 0..row_len {
+                let cell = Cell {
+                    point: Point(x as usize, y as usize),
+                    value: 0,
+                    color: Color { r: 255, g: 255, b: 255 },
+                    module_type: CellType::None
+                };
+                rows.push(cell);
+            }
+        }
+        rows
+    }
+
     pub fn apply_version_information_areas(&self, body: &mut Vec<Cell>) {
         let mut x = self.size - 11;
         let mut y = 0;
@@ -93,7 +111,7 @@ impl QROptions {
         }
     }
 
-    pub fn reserve_format_areas(&self, body: &mut Vec<Cell>) {
+    pub fn apply_reserve_format_areas(&self, body: &mut Vec<Cell>) {
         let mut vertical = Point(0, 8);
         let mut horizontal = Point(8, 0);
 
@@ -145,23 +163,6 @@ impl QROptions {
         }
     }
 
-    pub fn create_body(&self) -> Vec<Cell> {
-        let mut rows: Vec<Cell> = vec![];
-        let row_len = self.size;
-        for x in 0..row_len {
-            for y in 0..row_len {
-                let cell = Cell {
-                    point: Point(x as usize, y as usize),
-                    value: 0,
-                    color: Color { r: 255, g: 255, b: 255 },
-                    module_type: CellType::None
-                };
-                rows.push(cell);
-            }
-        }
-        rows
-    }
-
     pub fn apply_alignment_patterns(&self, body: &mut Vec<Cell>, points: &Vec<PlotPoint>) {
         for plot_point in points {
             let idx = plot_point.point.idx(self.size);
@@ -171,6 +172,113 @@ impl QROptions {
                     cell.color = plot_point.color
                 },
                 None => {}
+            }
+        }
+    }
+
+    pub fn apply_separators(&self, body: &mut Vec<Cell>, alignment_point: (usize, usize)) {
+        let row_len = self.size;
+        let (mut x, mut y) = alignment_point;
+        // x == y Upper left
+        // x < y Upper Right
+        // x > y Lower Left
+        let mut start_x = 0;
+        let mut start_y = 0;
+        let mut end_x = 0;
+        let mut end_y = 0;
+        if x == y {
+            // upper left
+            start_x = 7;
+            end_y = 7;
+        } else if x > y {
+            // lower left
+            start_x = row_len - 8;
+            end_x = row_len;
+            end_y = 7;
+        } else {
+            // upper right
+            start_y = row_len - 8;
+            end_y = row_len;
+            end_x = 7;
+        }
+        x = start_x;
+        y = start_y;
+        loop {
+            let pt = Point(x, y);
+            let idx = pt.idx(self.size);
+            match body.get_mut(idx) {
+                Some(c) => {
+                    c.module_type = CellType::Separator;
+                    c.color = Color { r: 20, g: 255, b: 255 };
+                },
+                None => panic!("dunno idx {} x: {} y: {}", idx, x, y)
+            }
+
+            if start_x == end_y && y < end_y {
+                y += 1;
+            } else if end_y == y && x > end_x {
+                x -= 1;
+            } else if end_x > x && start_y > x {
+                x += 1;
+            } else if end_x == x && end_y - 1 > y {
+                y += 1;
+            } else if end_y > y && start_x > y {
+                y += 1;
+            } else if (end_x > 0 && end_x - 1 > x) && end_y == y {
+                x += 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    pub fn apply_finder_patterns(&self, body: &mut Vec<Cell>, alignment_point: Point) {
+        for plot_point in self.plot_spiral(&alignment_point, 6, 0) {
+            let idx = plot_point.point.idx(self.size);
+            match body.get_mut(idx) {
+                Some(cell) => {
+                    cell.module_type = CellType::Finder;
+                    cell.color = plot_point.color
+                },
+                None => {}
+            }
+        }
+    }
+
+    pub fn apply_timer_patterns(&self, body: &mut Vec<Cell>) {
+        let (mut x, mut y) = (6, self.size - 8);
+        loop {
+            if x >= self.size - 7 {
+                break;
+            }
+            let pt = Point(x, y);
+            let idx = pt.idx(self.size);
+            match body.get_mut(idx) {
+                Some(cell) => {
+                    match cell.module_type {
+                        CellType::None => {
+                            let direction = if y > x {
+                                y
+                            } else {
+                                x
+                            };
+                            cell.module_type = CellType::Timing;
+                            if direction % 2 == 0 {
+                                cell.color = Color { r: 0, g: 0, b: 0 };
+                            }
+                        },
+                        _ => {}
+                    }
+                },
+                None => {}
+            }
+            if y > x {
+                y -= 1;
+            } else if y == 7 {
+                y = 6;
+                x = 8;
+            } else {
+                x += 1;
             }
         }
     }
@@ -235,62 +343,6 @@ impl QROptions {
         pairs
     }
 
-    pub fn apply_separators(&self, body: &mut Vec<Cell>, alignment_point: (usize, usize)) {
-        let row_len = self.size;
-        let (mut x, mut y) = alignment_point;
-        // x == y Upper left
-        // x < y Upper Right
-        // x > y Lower Left
-        let mut start_x = 0;
-        let mut start_y = 0;
-        let mut end_x = 0;
-        let mut end_y = 0;
-        if x == y {
-            // upper left
-            start_x = 7;
-            end_y = 7;
-        } else if x > y {
-            // lower left
-            start_x = row_len - 8;
-            end_x = row_len;
-            end_y = 7;
-        } else {
-            // upper right
-            start_y = row_len - 8;
-            end_y = row_len;
-            end_x = 7;
-        }
-        x = start_x;
-        y = start_y;
-        loop {
-            let pt = Point(x, y);
-            let idx = pt.idx(self.size);
-            match body.get_mut(idx) {
-                Some(c) => {
-                    c.module_type = CellType::Separator;
-                    c.color = Color { r: 20, g: 255, b: 255 };
-                },
-                None => panic!("dunno idx {} x: {} y: {}", idx, x, y)
-            }
-
-            if start_x == end_y && y < end_y {
-                y += 1;
-            } else if end_y == y && x > end_x {
-                x -= 1;
-            } else if end_x > x && start_y > x {
-                x += 1;
-            } else if end_x == x && end_y - 1 > y {
-                y += 1;
-            } else if end_y > y && start_x > y {
-                y += 1;
-            } else if (end_x > 0 && end_x - 1 > x) && end_y == y {
-                x += 1;
-            } else {
-                break;
-            }
-        }
-    }
-
     pub fn plot_spiral(&self, origin_pt: &Point, size: usize, diff: usize) -> Vec<PlotPoint> {
         let mut plot_points: Vec<PlotPoint> = vec![];
         let mut max = size;
@@ -327,104 +379,20 @@ impl QROptions {
         plot_points.push(PlotPoint { point: Point(x, y), color: Color { r: 30, g: 86, b: 240 } });
         plot_points
     }
-
-    pub fn apply_finder_patterns(&self, body: &mut Vec<Cell>, alignment_point: Point) {
-        for plot_point in self.plot_spiral(&alignment_point, 6, 0) {
-            let idx = plot_point.point.idx(self.size);
-            match body.get_mut(idx) {
-                Some(cell) => {
-                    cell.module_type = CellType::Finder;
-                    cell.color = plot_point.color
-                },
-                None => {}
-            }
-        }
-    }
-
-    pub fn apply_timer_patterns(&self, body: &mut Vec<Cell>) {
-        let (mut x, mut y) = (6, self.size - 8);
-        loop {
-            if x >= self.size - 7 {
-                break;
-            }
-            let pt = Point(x, y);
-            let idx = pt.idx(self.size);
-            match body.get_mut(idx) {
-                Some(cell) => {
-                    match cell.module_type {
-                        CellType::None => {
-                            let direction = if y > x {
-                                y
-                            } else {
-                                x
-                            };
-                            cell.module_type = CellType::Timing;
-                            if direction % 2 == 0 {
-                                cell.color = Color { r: 0, g: 0, b: 0 };
-                            }
-                        },
-                        _ => {}
-                    }
-                },
-                None => {}
-            }
-            if y > x {
-                y -= 1;
-            } else if y == 7 {
-                y = 6;
-                x = 8;
-            } else {
-                x += 1;
-            }
-        }
-    }
 }
 
 
 impl QR {
-    fn get_next_point(&self, current_idx: usize) -> usize {
-        let mut current_pt = Point::as_point(current_idx, self.config.size);
+    pub fn encode_chunk(&mut self, chunk: u8, position: (usize, usize)) -> (usize, usize) {
+        let mut current_index = position.0;
+        let mut prev_index = position.1;
         let row_length = self.config.size - 1;
-        let mut pos = current_idx;
-
-        if current_pt.1 == row_length {
-            current_pt = Point(current_pt.0, current_pt.1 - 1);
-        } else if current_pt.0 == row_length {
-            current_pt = Point(current_pt.0 - 1, current_pt.1);
-        } else {
-            current_pt = Point(current_pt.0 - 1, current_pt.1 + 1);
-        }
-
-        current_pt.idx(self.config.size)
-    }
-
-    // fn check_point(&self, idx: usize) -> CellFlow {
-    //     let cell_ref = self.body.get(idx);
-    //
-    //     if cell_ref.is_none() {
-    //         return CellFlow::OutOfBounds
-    //     }
-    //
-    //     let cell = cell_ref.unwrap();
-    //     let pos = cell.point.idx(self.config.size);
-    //     match cell.module_type {
-    //         CellType::None => CellFlow::Available(pos),
-    //         _ => CellFlow::Unavailable
-    //     }
-    // }
-
-
-    pub fn encode_chunk(&mut self, chunk: u8, position: usize) -> usize {
-        let mut current_index = position;
-        let row_length = self.config.size - 1;
-        let mut direction = 0;
         let corners: [(isize, isize); 4] = [
             (-1, 1),
             (1, 1),
             (1, -1),
             (-1, -1)
         ];
-
 
         for i in 0..8 {
             let current_point: Point = Point::as_point(current_index, self.config.size);
@@ -435,7 +403,6 @@ impl QR {
             let mut msg = 0u8;
             let mut off = 0u8;
             let mut algn = 0u8;
-            let mut prev_index = current_index;
 
             match self.body.get_mut(current_index) {
                 Some(cell) => {
@@ -454,17 +421,6 @@ impl QR {
             }
 
             while corner_idx < 4 {
-                // let corner = if check_ahead {
-                //     check_ahead = false;
-                //     let prev_corner = corners[corner_idx];
-                //     if prev_corner.0 == -1 {
-                //         (prev_corner.0 - 8, prev_corner.1)
-                //     } else {
-                //         (prev_corner.0 + 8, prev_corner.1)
-                //     }
-                // } else {
-                //     corners[corner_idx]
-                // };
                 let corner = corners[corner_idx];
                 let next_point = current_point >> corner;
                 let next_idx = next_point.idx(self.config.size);
@@ -497,11 +453,10 @@ impl QR {
                 if off_edge || next_point.1 >= self.config.size {
                     off = off ^ (1 << corner_idx);
                     corner_idx += 1;
-                    // cell_context = cell_context ^ (1 << (corner_idx + 4));
                     continue;
                 }
                 let cell = cell_ref.unwrap();
-                // println!("current_point: {:?}, next_point: {:?}, {:?}, corner: {}, cell_context: {}", current_point, next_point, cell, corner_idx, cell_context);
+
                 match cell.module_type {
                     CellType::None => {
                         // set no bits
@@ -525,14 +480,10 @@ impl QR {
 
                     CellType::Message => {
                         msg = msg ^ (1 << corner_idx);
-                        // cell_context = cell_context ^ (1 << (corner_idx + 8));
-                        // ex if corner_idx = 2, the context should look like 00100000
-                        // cell_context = cell_context ^ (1 << (corner_idx * 2));
                     },
 
                     CellType::Alignment => {
                         algn = algn ^ (1 << corner_idx);
-                        // cell_context = cell_context ^ (1 << corner_idx);
                     },
 
                     CellType::Timing => {
@@ -550,6 +501,8 @@ impl QR {
             let lead = lead_bit_position(free);
             let set_bits = bit_count(free);
             println!("lead: {}, free: {:b}, algn: {:b}, msg: {:b}, off: {:b}, index: {}, corner_idx: {}", lead, free, algn, msg, off, current_index, corner_idx);
+            let former_position = prev_index;
+            prev_index = current_index;
 
             // handle offsides cells
             if off > 0 {
@@ -569,11 +522,7 @@ impl QR {
                     current_index -= 1;
                 }
             } else if algn > 0 {
-                if algn == 0b0011 && prev_index > current_index {
-                    current_index -= row_length * 6;
-                } else if algn == 0b0011 && (prev_index - current_index) == row_length {
-                    current_index -= (row_length * 6) + 2;
-                }
+                current_index = self.by_alignment(algn, msg, free, off, former_position, current_index);
             } else {
                 // free of edge concerns
                 if msg == 0b0010 {
@@ -584,8 +533,6 @@ impl QR {
                     current_index -= 1;
                 }
             }
-
-            prev_index = current_index;
 
             /*
             trying to get algn = 1001 (top)
@@ -614,7 +561,35 @@ impl QR {
             */
         }
 
-        current_index
+        (current_index, prev_index)
+    }
+
+    fn by_alignment(&self, algn: u8, msg: u8, free: u8, off: u8, prev_index: usize, index: usize) -> usize {
+        let size = self.config.size;
+
+        if msg == 0b1001 || msg == 0b0110 {
+            return index - 1
+        }
+
+        if algn == 0b1001 && msg > 0 {
+            index - (size * 6)
+        } else if algn == 0b0110 && msg > 0 {
+            index + (size * 6)
+        } else if algn == 0b0010 && msg > 0 {
+            index + size + 1
+        } else if algn == 0b0100 && msg == 1 {
+            index + size + 1
+        } else if algn == 0b1100 && msg == 1 {
+            index + size + 1
+        } else if algn == 0b1100 && prev_index < index {
+            index + size + 1
+        } else if algn == 0b1000 && msg > 0 {
+            index + size + 1
+        } else if algn == 0b1000 && msg == 0b0111 {
+            index - 1
+        } else {
+            index
+        }
     }
 
     pub fn setup(&mut self) {
@@ -631,7 +606,7 @@ impl QR {
 
         self.config.apply_timer_patterns(&mut self.body);
         self.config.apply_dark_module(&mut self.body);
-        self.config.reserve_format_areas(&mut self.body);
+        self.config.apply_reserve_format_areas(&mut self.body);
 
         // version information area
         if self.config.version > 6 {
