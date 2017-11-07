@@ -6,6 +6,7 @@ use qr_encoder::cell::{
     PlotPoint
 };
 use qr_encoder::util::{set_color};
+use qr_encoder::area::Area;
 
 
 pub struct QR {
@@ -398,11 +399,14 @@ impl QR {
             let current_point: Point = Point::as_point(current_index, self.config.size);
             // let bit = chunk & (1 << i);
             let color = set_color(i);
+            let mut area = Area {
+                free: 0,
+                msg: 0,
+                off: 0,
+                algn: 0,
+                finder: 0
+            };
             let mut corner_idx = 0;
-            let mut free = 0u8;
-            let mut msg = 0u8;
-            let mut off = 0u8;
-            let mut algn = 0u8;
 
             match self.body.get_mut(current_index) {
                 Some(cell) => {
@@ -451,7 +455,7 @@ impl QR {
                 */
 
                 if off_edge || next_point.1 >= self.config.size {
-                    off = off ^ (1 << corner_idx);
+                    area.off ^= 1 << corner_idx;
                     corner_idx += 1;
                     continue;
                 }
@@ -460,74 +464,65 @@ impl QR {
                 match cell.module_type {
                     CellType::None => {
                         // set no bits
-                        free = free ^ (1 << corner_idx);
+                        area.free ^= 1 << corner_idx;
                     },
 
                     CellType::Finder => {
                         // set bits but not yet
-                        off = off ^ (1 << corner_idx);
-                    },
-
-                    CellType::Format => {
-                        // set bits but not yet
-                        off = off ^ (1 << corner_idx);
-                    },
-
-                    CellType::Separator => {
-                        // set bits but not yet
-                        off = off ^ (1 << corner_idx);
+                        area.finder ^= 1 << corner_idx;
                     },
 
                     CellType::Message => {
-                        msg = msg ^ (1 << corner_idx);
+                        area.msg ^= 1 << corner_idx;
                     },
 
                     CellType::Alignment => {
-                        algn = algn ^ (1 << corner_idx);
-                    },
-
-                    CellType::Timing => {
-                        off = off ^ (1 << corner_idx);
+                        area.algn ^= 1 << corner_idx;
                     },
 
                     _ => {
-                        panic!("Where am i? {:?}", cell);
                         // set bits but not yet
+                        area.off ^= 1 << corner_idx;
                     }
                 }
                 corner_idx += 1;
             }
 
-            let lead = lead_bit_position(free);
-            let set_bits = bit_count(free);
-            println!("lead: {}, free: {:b}, algn: {:b}, msg: {:b}, off: {:b}, index: {}, corner_idx: {}", lead, free, algn, msg, off, current_index, corner_idx);
+            let lead = lead_bit_position(area.free);
+            let set_bits = bit_count(area.free);
             let former_position = prev_index;
             prev_index = current_index;
 
             // handle offsides cells
-            if off > 0 {
-                if free ^ off == 0b1111 && lead == 0b11 && set_bits == 1 {
+            if area.off > 0 {
+                if area.off == 0b1001 && area.free == 0 {
                     current_index -= 1;
-                } else if free ^ off == 15 && free == 0b1001 {
-                    current_index -= row_length;
-                } else if free ^ off == 15 && free == 0b0110 {
+                } else if area.off == 0b1001 && set_bits == 1 {
+                    current_index -= 1;
+                } else if area.off == 0b0001 && set_bits >= 2 {
                     current_index += row_length + 2;
-                } else if free == 0 && msg ^ off == 0b1111 {
+                } else if area.free ^ area.off == 0b1111 && lead == 0b11 && set_bits == 1 {
                     current_index -= 1;
-                } else if msg == 0b0100 || msg == 0b1000 || msg == 0b0010 {
+                } else if area.free ^ area.off == 15 && area.free == 0b1001 {
+                    current_index -= row_length;
+                } else if area.free ^ area.off == 15 && area.free == 0b0110 {
+                    current_index += row_length + 2;
+                } else if area.free == 0 && area.msg ^ area.off == 0b1111 {
                     current_index -= 1;
-                } else if free == 0b0110 && off == 0b1001 {
+                } else if area.msg == 0b0100 || area.msg == 0b1000 || area.msg == 0b0010 {
+                    current_index -= 1;
+                } else if area.free == 0b0110 && area.off == 0b1001 {
                     current_index += row_length;
-                } else if free == 0b1000 {
+                } else if area.free == 0b1000 {
                     current_index -= 1;
                 }
-            } else if algn > 0 {
-                current_index = self.by_alignment(algn, msg, free, off, former_position, current_index);
+            } else if area.algn > 0 {
+                current_index = self.by_alignment(area, former_position, current_index);
             } else {
                 // free of edge concerns
-                if msg == 0b0010 {
+                if area.msg == 0b0010 {
                     current_index -= row_length;
-                } else if msg == 0b0001 {
+                } else if area.msg == 0b0001 {
                     current_index += row_length + 2;
                 } else {
                     current_index -= 1;
@@ -564,32 +559,68 @@ impl QR {
         (current_index, prev_index)
     }
 
-    fn by_alignment(&self, algn: u8, msg: u8, free: u8, off: u8, prev_index: usize, index: usize) -> usize {
+    fn by_alignment(&self, area: Area, prev_index: usize, index: usize) -> usize {
         let size = self.config.size;
+        let msg = area.msg;
+        let free = area.free;
+        let algn = area.algn;
+
+        let free_count = bit_count(free);
+        let msg_count = bit_count(msg);
 
         if msg == 0b1001 || msg == 0b0110 {
             return index - 1
         }
 
-        if algn == 0b1001 && msg > 0 {
-            index - (size * 6)
-        } else if algn == 0b0110 && msg > 0 {
-            index + (size * 6)
-        } else if algn == 0b0010 && msg > 0 {
-            index + size + 1
-        } else if algn == 0b0100 && msg == 1 {
-            index + size + 1
-        } else if algn == 0b1100 && msg == 1 {
-            index + size + 1
-        } else if algn == 0b1100 && prev_index < index {
-            index + size + 1
-        } else if algn == 0b1000 && msg > 0 {
-            index + size + 1
-        } else if algn == 0b1000 && msg == 0b0111 {
-            index - 1
-        } else {
-            index
+        if 0b1001 & free == 0b1001 {
+            return index - size + 1
         }
+
+        if free == 0b1001 || free == 0b0101 {
+            index - size + 1
+        } else if free == 0b0110 || free == 0b1010 {
+            index + size + 1
+        } else if algn == 0b1100 && free > 0 {
+            index + size + 1
+        } else if algn == 0b1001 && index + 1 == prev_index {
+            index - (size * 6) + 1
+        } else if algn == 0b0110 {
+            // panic!("{:?}", Point::as_point(index + (size * 6) + 1, size));
+            index + (size * 6) + 1
+        } else if algn == 1 {
+            index - size
+        } else if algn == 0b0011 && prev_index + 1 != index {
+            index - size
+        } else {
+            index - 1
+        }
+
+        // if algn == 0b0100 && free ^ msg == 0b1011 {
+        //     match free {
+        //         0b0010 => {},
+
+        //     }
+        // }
+
+        // if algn == 0b1001 && msg > 0 {
+        //     index - (size * 6)
+        // } else if algn == 0b0110 && msg > 0 {
+        //     index + (size * 6)
+        // } else if algn == 0b0010 && msg > 0 {
+        //     index + size + 1
+        // } else if algn == 0b0100 && msg == 1 {
+        //     index + size + 1
+        // } else if algn == 0b1100 && msg == 1 {
+        //     index + size + 1
+        // } else if algn == 0b1100 && prev_index < index {
+        //     index + size + 1
+        // } else if algn == 0b1000 && msg > 0 {
+        //     index + size + 1
+        // } else if algn == 0b1000 && msg == 0b0111 {
+        //     index - 1
+        // } else {
+        //     index
+        // }
     }
 
     pub fn setup(&mut self) {

@@ -43,9 +43,9 @@ fn main() {
     };
     qr.setup();
 
-    let sample = "\'It Was the Best of times, it was the Blurst of times??\'".to_string();
+    let sample = "\'It Was the Best of times, it was the Blurst of times?? You stupid monkey!\'".to_string();
     let mut position: (usize, usize) = ((qr.config.size * qr.config.size) - 1, 0);
-
+    let mut previous_position = position;
     for s in sample.into_bytes().into_iter() {
         position = qr.encode_chunk(s, position);
     }
