@@ -404,7 +404,7 @@ impl QR {
                 msg: 0,
                 off: 0,
                 algn: 0,
-                finder: 0
+                timing: 0
             };
             let mut corner_idx = 0;
 
@@ -467,9 +467,9 @@ impl QR {
                         area.free ^= 1 << corner_idx;
                     },
 
-                    CellType::Finder => {
+                    CellType::Timing => {
                         // set bits but not yet
-                        area.finder ^= 1 << corner_idx;
+                        area.timing ^= 1 << corner_idx;
                     },
 
                     CellType::Message => {
@@ -492,42 +492,42 @@ impl QR {
             let set_bits = bit_count(area.free);
             let former_position = prev_index;
             prev_index = current_index;
-
+            current_index = area.adjust_position(former_position, current_index, self.config.size);
             // handle offsides cells
-            if area.off > 0 {
-                if area.off == 0b1001 && area.free == 0 {
-                    current_index -= 1;
-                } else if area.off == 0b1001 && set_bits == 1 {
-                    current_index -= 1;
-                } else if area.off == 0b0001 && set_bits >= 2 {
-                    current_index += row_length + 2;
-                } else if area.free ^ area.off == 0b1111 && lead == 0b11 && set_bits == 1 {
-                    current_index -= 1;
-                } else if area.free ^ area.off == 15 && area.free == 0b1001 {
-                    current_index -= row_length;
-                } else if area.free ^ area.off == 15 && area.free == 0b0110 {
-                    current_index += row_length + 2;
-                } else if area.free == 0 && area.msg ^ area.off == 0b1111 {
-                    current_index -= 1;
-                } else if area.msg == 0b0100 || area.msg == 0b1000 || area.msg == 0b0010 {
-                    current_index -= 1;
-                } else if area.free == 0b0110 && area.off == 0b1001 {
-                    current_index += row_length;
-                } else if area.free == 0b1000 {
-                    current_index -= 1;
-                }
-            } else if area.algn > 0 {
-                current_index = self.by_alignment(area, former_position, current_index);
-            } else {
-                // free of edge concerns
-                if area.msg == 0b0010 {
-                    current_index -= row_length;
-                } else if area.msg == 0b0001 {
-                    current_index += row_length + 2;
-                } else {
-                    current_index -= 1;
-                }
-            }
+            // if area.off > 0 {
+            //     if area.off == 0b1001 && area.free == 0 {
+            //         current_index -= 1;
+            //     } else if area.off == 0b1001 && set_bits == 1 {
+            //         current_index -= 1;
+            //     } else if area.off == 0b0001 && set_bits >= 2 {
+            //         current_index += row_length + 2;
+            //     } else if area.free ^ area.off == 0b1111 && lead == 0b11 && set_bits == 1 {
+            //         current_index -= 1;
+            //     } else if area.free ^ area.off == 15 && area.free == 0b1001 {
+            //         current_index -= row_length;
+            //     } else if area.free ^ area.off == 15 && area.free == 0b0110 {
+            //         current_index += row_length + 2;
+            //     } else if area.free == 0 && area.msg ^ area.off == 0b1111 {
+            //         current_index -= 1;
+            //     } else if area.msg == 0b0100 || area.msg == 0b1000 || area.msg == 0b0010 {
+            //         current_index -= 1;
+            //     } else if area.free == 0b0110 && area.off == 0b1001 {
+            //         current_index += row_length;
+            //     } else if area.free == 0b1000 {
+            //         current_index -= 1;
+            //     }
+            // } else if area.algn > 0 {
+            //     current_index = area.near_alignment(former_position, current_index, self.config.size);
+            // } else {
+            //     // free of edge concerns
+            //     if area.msg == 0b0010 {
+            //         current_index -= row_length;
+            //     } else if area.msg == 0b0001 {
+            //         current_index += row_length + 2;
+            //     } else {
+            //         current_index -= 1;
+            //     }
+            // }
 
             /*
             trying to get algn = 1001 (top)
