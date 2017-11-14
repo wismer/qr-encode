@@ -21,7 +21,7 @@ impl Area {
     fn get_direction(&self, prev_index: usize, current_index: usize) -> Direction {
         let same_row: bool = current_index + 1 == prev_index;
 
-        if same_row && self.msg & 0b0001 == 1 || self.free == 0b0110 {
+        if same_row && self.msg & 0b0001 == 1 || self.free == 0b0110 && self.timing == 0 {
             Direction::DownRight
         } else if same_row && self.msg & 0b0010 == 2 || self.free == 0b1001 || self.free == 0b1101 {
             Direction::UpRight
@@ -29,6 +29,8 @@ impl Area {
             Direction::Up
         } else if !same_row && prev_index < current_index && self.free == 0b0010 {
             Direction::Down
+        } else if same_row && self.timing == 0b1001 {
+            Direction::UpLeft
         } else {
             Direction::Left
         }
@@ -135,6 +137,7 @@ impl Area {
                     current_index + size + 1
                 }
             },
+
             Direction::UpRight => {
                 if self.free & 0b0011 == 0 {
                     current_index - 1
@@ -144,6 +147,7 @@ impl Area {
                     current_index - size + 1
                 }
             },
+
             Direction::Left => {
                 if self.free & 1 == 1 {
                     current_index - size + 1
@@ -153,6 +157,11 @@ impl Area {
                     current_index - 1
                 }
             },
+
+            Direction::UpLeft => {
+                current_index % size - 1
+            },
+
             _ => current_index - 1
         }
     }
