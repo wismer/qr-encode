@@ -384,9 +384,41 @@ impl QROptions {
 
 
 impl QR {
-    pub fn encode_chunk(&mut self, chunk: u8, position: (usize, usize)) -> (usize, usize) {
+    // pub fn apply_encoding(&mut self, encoding: u8) -> usize {
+    //     let start_point = (self.config.size * self.config.size) - 1;
+    //     let indices: [usize; 4] = [
+    //         start_point,
+    //         start_point - 1,
+    //         start_point - self.config.size + 1,
+    //         start_point - self.config.size
+    //     ];
+
+    //     for i in 0..4 {
+    //         let index = indices[i];
+    //         match self.body.get_mut(index) {
+    //             Some(cell) => {
+    //                 cell.module_type = CellType::Message;
+    //                 cell.color = set_color(i);
+    //             },
+    //             None => {}
+    //         }
+    //     }
+
+    //     indices[3] - self.config.size + 1
+    // }
+
+    pub fn encode_chunk(&mut self, chunk: u8, chunk_length: usize, position: (usize, usize, Area)) -> (usize, usize, Area) {
         let mut current_index = position.0;
         let mut prev_index = position.1;
+        let mut previous_area_context = Area {
+            free: 0,
+            msg: 0,
+            off: 0,
+            algn: 0,
+            timing: 0,
+            current_index: current_index,
+            prev_index: prev_index
+        };
         let row_length = self.config.size - 1;
         let corners: [(isize, isize); 4] = [
             (-1, 1),
@@ -395,17 +427,21 @@ impl QR {
             (-1, -1)
         ];
 
-        for i in 0..8 {
-            let current_point: Point = Point::as_point(current_index, self.config.size);
-            // let bit = chunk & (1 << i);
-            let color = set_color(i);
+        for i in 0..chunk_length {
             let mut area = Area {
                 free: 0,
                 msg: 0,
                 off: 0,
                 algn: 0,
-                timing: 0
+                timing: 0,
+                current_index: current_index,
+                prev_index: prev_index
             };
+
+            let current_point: Point = Point::as_point(current_index, self.config.size);
+            // let bit = chunk & (1 << i);
+            let color = set_color(i);
+
             let mut corner_idx = 0;
 
             match self.body.get_mut(current_index) {
@@ -487,12 +523,12 @@ impl QR {
                 }
                 corner_idx += 1;
             }
-
-            let lead = lead_bit_position(area.free);
-            let set_bits = bit_count(area.free);
-            let former_position = prev_index;
+            // after each corner gets examined, copy the current area context and save it to the previous area context
+            let prev_area = previous_area_context;
+            // let former_position = prev_index;
             prev_index = current_index;
-            current_index = area.adjust_position(former_position, current_index, self.config.size);
+            previous_area_context = area;
+            current_index = area.adjust_position(self.config.size, prev_area);
             // handle offsides cells
             // if area.off > 0 {
             //     if area.off == 0b1001 && area.free == 0 {
@@ -556,7 +592,7 @@ impl QR {
             */
         }
 
-        (current_index, prev_index)
+        (current_index, prev_index, previous_area_context)
     }
 
     fn by_alignment(&self, area: Area, prev_index: usize, index: usize) -> usize {
@@ -644,7 +680,7 @@ impl QR {
             self.config.apply_version_information_areas(&mut self.body);
         }
 
-        println!("LENGTH IS {}, SIZE IS {}", self.body.len(), self.config.size);
+        println!("LENGTH IS {}, SIZE IS {}, VERSION: {}", self.body.len(), self.config.size, self.config.version);
         println!("--- QR ENCODER READY FOR ENCODING ---");
     }
 }
