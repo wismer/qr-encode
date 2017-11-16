@@ -1,8 +1,16 @@
+use std::ops::{Shr};
+
 #[derive(Copy, Clone, Debug)]
 pub struct Color {
     pub r: u32,
     pub g: u32,
     pub b: u32
+}
+
+pub enum Direction {
+    Up,
+    Left,
+    Down
 }
 
 #[derive(Debug)]
@@ -14,10 +22,10 @@ pub enum CellType {
     DarkModule,
     VersionInformation,
     Format,
-    Free,
     Message,
     None
 }
+
 
 #[derive(Debug)]
 pub struct Cell {
@@ -27,13 +35,7 @@ pub struct Cell {
     pub color: Color
 }
 
-pub enum CellFlow {
-    OutOfBounds,
-    Unavailable,
-    Available(usize)
-}
-
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Point(pub usize, pub usize);
 
 impl Point {
@@ -46,6 +48,21 @@ impl Point {
     }
 }
 
+impl Shr<(isize, isize)> for Point {
+    type Output = Point;
+
+    fn shr(self, rhs: (isize, isize)) -> Point {
+        let (rx, ry) = rhs;
+        let x = (self.0 as isize) + rx;
+        let y = (self.1 as isize) + ry;
+
+        if x < 0 || y < 0 {
+            Point(0, 0)
+        } else {
+            Point(x as usize, y as usize)
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct PlotPoint {
