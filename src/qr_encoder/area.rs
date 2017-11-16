@@ -13,10 +13,10 @@ const UPPER_RIGHT: u8 = 1;
 const LOWER_RIGHT: u8 = 2;
 const LOWER_LEFT: u8 = 4;
 const UPPER_LEFT: u8 = 8;
-const TOP: u8 = UPPER_RIGHT ^ UPPER_LEFT;
-const BOTTOM: u8 = LOWER_RIGHT ^ UPPER_LEFT;
-const LEFT: u8 = LOWER_LEFT ^ UPPER_LEFT;
-const RIGHT: u8 = LOWER_RIGHT ^ UPPER_RIGHT;
+const TOP: u8 = UPPER_RIGHT | UPPER_LEFT;
+const BOTTOM: u8 = LOWER_RIGHT | LOWER_LEFT;
+const LEFT: u8 = LOWER_LEFT | UPPER_LEFT;
+const RIGHT: u8 = LOWER_RIGHT | UPPER_RIGHT;
 
 #[derive(Debug)]
 enum Direction {
@@ -26,7 +26,8 @@ enum Direction {
     UpLeft,
     Down,
     DownLeft,
-    DownRight
+    DownRight,
+    JumpLeft
 }
 
 impl Area {
@@ -53,11 +54,13 @@ impl Area {
         }
     }
 
-    fn guess_direction(&self, prev_area: Area) -> Direction {
+    fn guess_direction(&self, prev_area: Area, size: usize) -> Direction {
         if self.free & UPPER_RIGHT == UPPER_RIGHT && prev_area.free & RIGHT == 0 {
             Direction::UpRight
         } else if self.free & LOWER_RIGHT == LOWER_RIGHT && prev_area.free & RIGHT == 0 {
             Direction::DownRight
+        } else if self.timing == TOP && prev_area.prev_index != self.current_index + size {
+            Direction::JumpLeft
         } else {
             Direction::Left
         }
@@ -68,7 +71,7 @@ impl Area {
     // }
 
     pub fn near_alignment(&self, size: usize, prev_area: Area) -> usize {
-        match self.guess_direction(prev_area) {
+        match self.guess_direction(prev_area, size) {
             Direction::UpRight => {
                 if self.algn == 0b1001 {
                     self.current_index - (size * 6) + 1
@@ -108,26 +111,37 @@ impl Area {
             },
 
             Direction::Left => {
-                // if self.algn == 0b1100 {
-                //     self.current_index + size + 1
-                // } else if self.free == 0b1100 {
-                //     self.current_index - size
-                // } else {
-                //     self.current_index - 1
-                // }
+                // if the previous position was to the right, and there's a single
+                if self.current_index % size == self.prev_index % size {
+                    if self.current_index > self.prev_index {
+                        self.current_index + size
+                    } else {
+                        self.current_index - size
+                    }
+                } else if self.current_index + 1 == self.prev_index && self.algn == TOP {
+                    self.prev_index - (size * 6)
+                } else if self.current_index + 1 == self.prev_index && self.algn == BOTTOM {
+                    self.prev_index + (size * 6)
+                } else if self.current_index + 1 == self.prev_index && self.algn == UPPER_RIGHT {
+                    self.current_index - size
+                } else {
+                    self.current_index - 1
+                }
             },
             _ => self.current_index - 1
         }
     }
 
-    pub fn print_binary(&self, size: usize) {
-        // println!("Direction: {:?}", self.guess_direction());
+    pub fn print_binary(&self, size: usize, prev_area: Area) {
+        println!("Direction: {:?}", self.guess_direction(prev_area, size));
         println!("Point: {}, {}", self.current_index / size, self.current_index % size);
         println!("Alignment {:b}", self.algn);
         println!("Offsides  {:b}", self.off);
         println!("Free      {:b}", self.free);
         println!("Message   {:b}", self.msg);
         println!("Timing    {:b}", self.timing);
+        println!("Previous  {}", self.prev_index);
+        println!("Current   {}", self.current_index);
     }
 
     pub fn same_row(&self) -> bool {
@@ -139,7 +153,7 @@ impl Area {
     }
 
     pub fn near_edge(&self, size: usize, prev_area: Area) -> usize {
-        match self.guess_direction(prev_area) {
+        match self.guess_direction(prev_area, size) {
             Direction::DownRight => {
                 if self.off == 0b0110 {
                     self.current_index - 1
@@ -165,6 +179,10 @@ impl Area {
             },
 
             Direction::Left => {
+                if prev_area.timing == TOP || self.current_index % size == self.prev_index % size && self.current_index != self.prev_index {
+                    return self.current_index + size
+                }
+
                 if self.free & 1 == 1 {
                     self.current_index - size + 1
                 } else if self.free == 0b1110 {
@@ -178,13 +196,17 @@ impl Area {
     }
 
     fn near_timing(&self, size: usize, prev_area: Area) -> usize {
-        match self.guess_direction(prev_area) {
+        match self.guess_direction(prev_area, size) {
             Direction::DownRight => {
                 if self.off == 0b0110 {
                     self.current_index - 1
                 } else {
                     self.current_index + size + 1
                 }
+            },
+
+            Direction::JumpLeft => {
+                
             },
 
             Direction::UpRight => {
@@ -200,13 +222,43 @@ impl Area {
             },
 
             Direction::Left => {
-                if self.free & 1 == 1 {
+                if self.timing == BOTTOM && prev_area.free == UPPER_LEFT {
                     self.current_index - size + 1
-                } else if self.free == 0b1110 {
-                    self.current_index + size + 1
+                } else if self.timing == TOP {
+                    self.current_index - 1
                 } else {
                     self.current_index - 1
                 }
+                // if self.timing == BOTTOM {
+
+                // } else if {
+
+                // }
+                // if prev_area.timing == TOP && self.timing == TOP {
+                //     if prev_area.prev_index == self.current_index + size {
+                //         self.current_index - (size * 2) + 1
+                //     } else {
+                //         self.current_index % size - 1
+                //     }
+                // } else if self.timing == BOTTOM {
+                //     if self.msg == TOP {
+                //         // implies a downward motion
+                //         self.current_index - 1
+                //     } else if self.free == UPPER_LEFT {
+                //         // implies an upward motion if it's not downward?
+                //     } else {
+                //         self.current_index + (size * 2)
+                //     }
+                // } else {
+                //     self.current_index - 1
+                // }
+                // // if self.free & 1 == 1 {
+                // //     self.current_index - size + 1
+                // // } else if self.free == 0b1110 {
+                // //     self.current_index + size + 1
+                // // } else {
+                // //     self.current_index - 1
+                // // }
             },
 
             Direction::UpLeft => {
@@ -218,7 +270,7 @@ impl Area {
     }
 
     pub fn adjust_position(&self, size: usize, prev_area: Area) -> usize {
-        self.print_binary(size);
+        self.print_binary(size, prev_area);
 
         if self.timing > 0 {
             self.near_timing(size, prev_area)
