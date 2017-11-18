@@ -27,27 +27,28 @@ enum Direction {
     Down,
     DownLeft,
     DownRight,
-    JumpLeft
+    JumpLeft,
+    AlignmentTimingBlock
 }
 
 impl Area {
     fn get_direction(&self) -> Direction {
-        let same_row: bool = self.same_row();
+        let row: bool = self.row();
         let difference = if self.prev_index > self.current_index {
             self.prev_index - self.current_index
         } else {
             self.current_index - self.prev_index
         };
 
-        if same_row && self.msg & 0b0001 == 1 || self.free == 0b0110 && self.timing == 0 {
+        if row && self.msg & 0b0001 == 1 || self.free == 0b0110 && self.timing == 0 {
             Direction::DownRight
-        } else if same_row && self.msg & 0b0010 == 2 || self.free == 0b1001 || self.free == 0b1101 {
+        } else if row && self.msg & 0b0010 == 2 || self.free == 0b1001 || self.free == 0b1101 {
             Direction::UpRight
-        } else if !same_row && self.prev_index > self.current_index && self.free & 0b1100 > 0 {
+        } else if !row && self.prev_index > self.current_index && self.free & 0b1100 > 0 {
             Direction::Up
-        } else if !same_row && self.prev_index < self.current_index && self.free == 0b0010 {
+        } else if !row && self.prev_index < self.current_index && self.free == 0b0010 {
             Direction::Down
-        } else if same_row && self.timing == 0b1001 {
+        } else if row && self.timing == 0b1001 {
             Direction::UpLeft
         } else {
             Direction::Left
@@ -59,8 +60,12 @@ impl Area {
             Direction::UpRight
         } else if self.free & LOWER_RIGHT == LOWER_RIGHT && prev_area.free & RIGHT == 0 {
             Direction::DownRight
-        } else if self.timing == TOP && prev_area.prev_index != self.current_index + size {
+        } else if self.timing == TOP && prev_area.prev_index == self.current_index + 2 {
             Direction::JumpLeft
+        } else if self.current_index % size == self.prev_index % size && self.current_index > self.prev_index {
+            Direction::Down
+        } else if self.current_index % size == self.prev_index % size && self.current_index < self.prev_index {
+            Direction::Up
         } else {
             Direction::Left
         }
@@ -68,6 +73,12 @@ impl Area {
 
     // fn for_those_weird_cases(&self, size: usize, prev_area: Area) -> usize {
         
+    // // }
+
+    // fn timing_aligment_edge_section(&self, size: usize, prev_area: Area) -> usize {
+    //     match self.guess_direction(prev_area, size) {
+            
+    //     }
     // }
 
     pub fn near_alignment(&self, size: usize, prev_area: Area) -> usize {
@@ -144,12 +155,12 @@ impl Area {
         println!("Current   {}", self.current_index);
     }
 
-    pub fn same_row(&self) -> bool {
+    pub fn row(&self) -> bool {
         self.current_index + 1 == self.prev_index
     }
 
-    pub fn same_column(&self, size: usize) -> bool {
-        self.current_index % size == self.prev_index % size
+    pub fn column(&self, size: usize) -> usize {
+        self.current_index % size
     }
 
     pub fn near_edge(&self, size: usize, prev_area: Area) -> usize {
@@ -163,15 +174,16 @@ impl Area {
             },
 
             Direction::Up => {
-                if (self.prev_index / size) - (self.current_index / size) > 5 {
-                    self.current_index + size
-                } else {
-                    self.current_index - 1
-                }
+                // if (self.prev_index / size) - (self.current_index / size) > 5 {
+                self.current_index - size
+            },
+
+            Direction::Down => {
+                self.current_index + size
             },
 
             Direction::UpRight => {
-                if self.off == 0b1001 {
+                if self.off == RIGHT || self.off == LEFT {
                     self.current_index - 1
                 } else {
                     self.current_index - size + 1
@@ -179,18 +191,21 @@ impl Area {
             },
 
             Direction::Left => {
-                if prev_area.timing == TOP || self.current_index % size == self.prev_index % size && self.current_index != self.prev_index {
-                    return self.current_index + size
-                }
-
                 if self.free & 1 == 1 {
                     self.current_index - size + 1
                 } else if self.free == 0b1110 {
                     self.current_index + size + 1
+                } else if prev_area.timing > 0 {
+                    self.current_index + size
+                } else if self.off == 0b1110 {
+                    self.current_index - (size * 8) - 1
+                } else if self.off == TOP && self.algn == LOWER_LEFT {
+                    self.current_index - 2
                 } else {
                     self.current_index - 1
                 }
             },
+
             _ => self.current_index - 1
         }
     }
@@ -205,14 +220,20 @@ impl Area {
                 }
             },
 
-            Direction::JumpLeft => {
-                
+            Direction::Up => {
+                if self.algn == RIGHT && self.timing == UPPER_LEFT {
+                    self.current_index - (size * 2)
+                } else {
+                    self.current_index - size
+                }
             },
 
+            Direction::Down => self.current_index + (size * 2),
+
+            Direction::JumpLeft => self.current_index % size - 1,
+
             Direction::UpRight => {
-                if self.same_row() && prev_area.same_row() {
-                    self.current_index % size - 1
-                } else if self.free & 0b0011 == 0 {
+                if self.free & 0b0011 == 0 {
                     self.current_index - 1
                 } else if self.off == 0b1001 {
                     self.current_index - 1                    
@@ -224,8 +245,22 @@ impl Area {
             Direction::Left => {
                 if self.timing == BOTTOM && prev_area.free == UPPER_LEFT {
                     self.current_index - size + 1
-                } else if self.timing == TOP {
+                } else if self.timing == BOTTOM && self.prev_index == self.current_index + 1 && prev_area.prev_index < self.current_index {
+                    self.current_index + (size * 2) + 1
+                } else if self.timing == TOP && prev_area.off > 0 {
                     self.current_index - 1
+                } else if self.timing == TOP && prev_area.timing == BOTTOM {
+                    self.current_index - 1
+                } else if self.timing == TOP && self.prev_index == self.current_index + 1 {
+                    self.current_index - (size * 2) + 1
+                } else if self.algn == LEFT && self.free == 0 {
+                    self.current_index + (size * 2) + 1
+                } else if self.off == LEFT {
+                    self.current_index + (size * 2) + 1
+                } else if self.off == TOP {
+                    self.current_index - 2
+                } else if self.algn == TOP && self.timing == LOWER_LEFT {
+                    self.current_index - (size * 6) + 1
                 } else {
                     self.current_index - 1
                 }

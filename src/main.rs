@@ -44,7 +44,7 @@ fn main() {
     };
     qr.setup();
 
-    let sample = "\'It Was the Best of times, it was the Blurst of times?? You stupid monkey! dskjhfslkdjfhsldkjfsadasdsdassdsdsdsdsdsdsdsdsdsdasdsdfsdfsdfsdfsdfsa".to_string();
+    let sample = "".to_string();
     // let sample = "abcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhij".to_string();
     let area = Area {
         free: 0,
@@ -58,9 +58,12 @@ fn main() {
     let start_point = (qr.config.size * qr.config.size) - 1;
     let mut position: (usize, usize, Area) = qr.encode_chunk(10, 4, (start_point, start_point, area));
 
-
-    for s in sample.into_bytes().into_iter() {
-        position = qr.encode_chunk(s, 8, position);
+    let mut character_position = 0;
+    // for s in sample.into_bytes().into_iter() {
+    for s in 0..543 {
+        println!("Character: {}, position: {}", s, character_position);
+        position = qr.encode_chunk(s as u8, 8, position);
+        character_position += 1;
     }
 
     create_qr_image(qr);
