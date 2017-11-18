@@ -8,7 +8,6 @@ use qr_encoder::cell::{
 use qr_encoder::util::{set_color};
 use qr_encoder::area::Area;
 
-
 pub struct QR {
     pub config: QROptions,
     pub body: Vec<Cell>
@@ -158,7 +157,7 @@ impl QROptions {
         match body.get_mut(idx) {
             Some(cell) => {
                 cell.module_type = CellType::DarkModule;
-                cell.color = Color { r: 255, b: 233, g: 20 }
+                cell.color = Color { r: 10, g: 140, b: 230 };
             },
             None => {}
         }
@@ -377,7 +376,7 @@ impl QROptions {
             y += 1;
         }
         // center cell
-        plot_points.push(PlotPoint { point: Point(x, y), color: Color { r: 30, g: 86, b: 240 } });
+        plot_points.push(PlotPoint { point: Point(x, y), color: Color { r: 0, g: 0, b: 0 } });
         plot_points
     }
 }
@@ -439,8 +438,13 @@ impl QR {
             };
 
             let current_point: Point = Point::as_point(current_index, self.config.size);
-            // let bit = chunk & (1 << i);
-            let color = set_color(i);
+            let bit = chunk & (1 << i);
+            // let color = set_color(i);
+            let color: Color = if bit == 0 {
+                Color { r: 255, g: 255, b: 255 }
+            } else {
+                Color { r: 0, g: 0, b: 0 }
+            };
 
             let mut corner_idx = 0;
 
@@ -448,12 +452,7 @@ impl QR {
                 Some(cell) => {
                     // println!("{:?}", cell);
                     cell.module_type = CellType::Message;
-
-                    if i == 7 {
-                        cell.color = Color { r: 0, g: 0, b: 0 };
-                    } else {
-                        cell.color = color;
-                    }
+                    cell.color = color;
                 },
                 None => {
                     println!("this should never happen {:?}", current_point);

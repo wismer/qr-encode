@@ -11,3 +11,4 @@ name = "qr-gen"
 
 [dependencies]
 image = "*"
+reed-solomon = "0.2.0"

@@ -1,6 +1,9 @@
 
 pub mod qr_encoder;
 extern crate image as image_lib;
+extern crate reed_solomon;
+
+
 use qr_encoder::qr::{QROptions, QR};
 use qr_encoder::util::{get_pixel_points, square_count, args};
 use qr_encoder::area::Area;
@@ -12,6 +15,7 @@ use self::image_lib::{
     ImageBuffer,
     Rgba
 };
+use self::reed_solomon::Encoder;
 
 
 fn create_qr_image(qr: QR) {
@@ -45,7 +49,7 @@ fn main() {
     qr.setup();
 
     let sample = "".to_string();
-    // let sample = "abcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhij".to_string();
+    let sample = "abcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijabcdefhijefhijabcdefhijabcdefhijabcdefhijhijabcdefhijefhijabcdefhijabcdefhijabcdefhisssdssj".to_string();
     let area = Area {
         free: 0,
         msg: 0,
@@ -55,18 +59,21 @@ fn main() {
         prev_index: 0,
         current_index: 0
     };
+
+    let error_correction = Encoder::new(sample.len());
+    let scrambled_data = error_correction.encode(&sample.into_bytes());
+    println!("{:?}", scrambled_data);
     let start_point = (qr.config.size * qr.config.size) - 1;
     let mut position: (usize, usize, Area) = qr.encode_chunk(10, 4, (start_point, start_point, area));
-
     let mut character_position = 0;
     // for s in sample.into_bytes().into_iter() {
-    for s in 0..580 {
-        println!("Character: {}, position: {}", s, character_position);
-        position = qr.encode_chunk(s as u8, 8, position);
-        character_position += 1;
-    }
+    // // for s in 0..580 {
+    //     println!("Character: {}, position: {}", s, character_position);
+    //     position = qr.encode_chunk(s as u8, 8, position);
+    //     character_position += 1;
+    // }
 
     // qr.encode_chunk(10, 10, position);
 
-    create_qr_image(qr);
+    // create_qr_image(qr);
 }
