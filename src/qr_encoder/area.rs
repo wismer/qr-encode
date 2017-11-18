@@ -106,6 +106,8 @@ impl Area {
                     self.current_index + size
                 } else if self.algn & 0b0100 == 0b0100 {
                     self.current_index + size + 1
+                } else if prev_area.timing > 0 {
+                    self.current_index + size + 1
                 } else {
                     self.current_index - 1
                 }
@@ -135,6 +137,10 @@ impl Area {
                     self.prev_index + (size * 6)
                 } else if self.current_index + 1 == self.prev_index && self.algn == UPPER_RIGHT {
                     self.current_index - size
+                } else if self.current_index + 1 == self.prev_index && self.algn == LOWER_RIGHT {
+                    self.current_index + (size * 6) + 1
+                } else if self.current_index + 1 == self.prev_index && prev_area.timing == LOWER_RIGHT {
+                    self.current_index + size + 1
                 } else {
                     self.current_index - 1
                 }
@@ -195,6 +201,10 @@ impl Area {
                     self.current_index - size + 1
                 } else if self.free == 0b1110 {
                     self.current_index + size + 1
+                } else if prev_area.timing == LEFT {
+                    self.current_index - 1
+                } else if prev_area.timing > 0 && self.off == BOTTOM {
+                    self.current_index - 1
                 } else if prev_area.timing > 0 {
                     self.current_index + size
                 } else if self.off == 0b1110 {
@@ -257,7 +267,7 @@ impl Area {
                     self.current_index + (size * 2) + 1
                 } else if self.off == LEFT {
                     self.current_index + (size * 2) + 1
-                } else if self.off == TOP {
+                } else if self.off == TOP && self.prev_index - self.current_index == 1 {
                     self.current_index - 2
                 } else if self.algn == TOP && self.timing == LOWER_LEFT {
                     self.current_index - (size * 6) + 1

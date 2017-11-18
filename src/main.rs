@@ -60,11 +60,13 @@ fn main() {
 
     let mut character_position = 0;
     // for s in sample.into_bytes().into_iter() {
-    for s in 0..543 {
+    for s in 0..580 {
         println!("Character: {}, position: {}", s, character_position);
         position = qr.encode_chunk(s as u8, 8, position);
         character_position += 1;
     }
+
+    // qr.encode_chunk(10, 10, position);
 
     create_qr_image(qr);
 }
