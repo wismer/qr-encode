@@ -48,8 +48,11 @@ fn main() {
     };
     qr.setup();
 
-    let sample = "".to_string();
-    let sample = "abcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijklmnopqrstuvwxyzabcdefghabcdefhijabcdefhijabcdefhijabcdefhijabcdefhijefhijabcdefhijabcdefhijabcdefhijhijabcdefhijefhijabcdefhijabcdefhijabcdefhisssdssj".to_string();
+    let sample = "It was the best of times, it was the BLURST of times? You god dammned".to_string();
+    let data_length = sample.len();
+
+    // for now, assume it's in byte mode - 0b1000
+
     let area = Area {
         free: 0,
         msg: 0,
@@ -62,10 +65,11 @@ fn main() {
 
     let error_correction = Encoder::new(sample.len());
     let scrambled_data = error_correction.encode(&sample.into_bytes());
-    println!("{:?}", scrambled_data);
     let start_point = (qr.config.size * qr.config.size) - 1;
-    let mut position: (usize, usize, Area) = qr.encode_chunk(10, 4, (start_point, start_point, area));
-    let mut character_position = 0;
+    let mut position: (usize, usize, Area) = qr.encode_chunk(qr.config.encoding, 4, (start_point, start_point, area));
+
+
+    println!(" ------ {} ------", scrambled_data.len());
     // for s in sample.into_bytes().into_iter() {
     // // for s in 0..580 {
     //     println!("Character: {}, position: {}", s, character_position);

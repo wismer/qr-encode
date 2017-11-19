@@ -2,7 +2,7 @@ use std::env::{args_os};
 use std::ffi::{OsStr};
 
 use qr_encoder::cell::{Cell, Color};
-use qr_encoder::qr::{QROptions};
+use qr_encoder::qr::{QROptions, ECLevel, EncodingMode};
 
 pub fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
     let i = (cell.point.0 * 20) as u32;
@@ -36,6 +36,12 @@ pub fn set_color(index: usize) -> Color {
     }
 }
 
+fn content_length_for_version(version: usize, mode: ) -> usize {
+    match version {
+        1...10 => 8,
+    }
+    
+}
 
 pub fn args() -> QROptions {
     /*
@@ -76,7 +82,9 @@ pub fn args() -> QROptions {
     QROptions {
         version: version,
         encoding: 8u8,
+        encoding_mode: EncodingMode::Byte,
         requires_alignment: version > 1,
+        err_correction_level: ECLevel::Medium,
         size: (((version - 1) * 4) + 21),
         finder_points: [
             (0, 0),
