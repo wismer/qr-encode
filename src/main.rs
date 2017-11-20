@@ -4,9 +4,10 @@ extern crate image as image_lib;
 extern crate reed_solomon;
 
 
-use qr_encoder::qr::{QROptions, QR};
+use qr_encoder::qr::QR;
+use qr_encoder::config::{QRConfig};
 use qr_encoder::util::{get_pixel_points, square_count, args};
-use qr_encoder::area::Area;
+use qr_encoder::position::Position;
 
 use std::fs::File;
 use std::path::Path;
@@ -41,35 +42,27 @@ fn create_qr_image(qr: QR) {
 
 
 fn main() {
-    let opts: QROptions = args();
+    let config: QRConfig = args();
+    let start_point = (config.size * config.size) - 1;    
     let mut qr: QR = QR {
-        body: opts.create_body(),
-        config: opts
+        body: config.create_body(),
+        config: config,
+        current_position: Position::new(start_point),
+        previous_position: Position::new(start_point)
     };
+
     qr.setup();
+    qr.encode_meta();
+    qr.encode_data();
+    create_qr_image(qr);
 
-    let sample = "It was the best of times, it was the BLURST of times? You god dammned".to_string();
-    let data_length = sample.len();
-
-    // for now, assume it's in byte mode - 0b1000
-
-    let area = Area {
-        free: 0,
-        msg: 0,
-        off: 0,
-        algn: 0,
-        timing: 0,
-        prev_index: 0,
-        current_index: 0
-    };
-
-    let error_correction = Encoder::new(sample.len());
-    let scrambled_data = error_correction.encode(&sample.into_bytes());
-    let start_point = (qr.config.size * qr.config.size) - 1;
-    let mut position: (usize, usize, Area) = qr.encode_chunk(qr.config.encoding, 4, (start_point, start_point, area));
+    // let error_correction = Encoder::new(sample.len());
+    // let scrambled_data = error_correction.encode(&sample.into_bytes());
+    // let start_point = (qr.config.size * qr.config.size) - 1;
+    // let mut position: (usize, usize, Area) = qr.encode_chunk(qr.config.encoding, 4, (start_point, start_point, area));
 
 
-    println!(" ------ {} ------", scrambled_data.len());
+    // println!(" ------ {} ------", scrambled_data.len());
     // for s in sample.into_bytes().into_iter() {
     // // for s in 0..580 {
     //     println!("Character: {}, position: {}", s, character_position);

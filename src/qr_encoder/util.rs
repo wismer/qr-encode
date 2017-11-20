@@ -2,7 +2,7 @@ use std::env::{args_os};
 use std::ffi::{OsStr};
 
 use qr_encoder::cell::{Cell, Color};
-use qr_encoder::qr::{QROptions, ECLevel, EncodingMode};
+use qr_encoder::config::{QRConfig, ECLevel, EncodingMode};
 
 pub fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
     let i = (cell.point.0 * 20) as u32;
@@ -36,14 +36,14 @@ pub fn set_color(index: usize) -> Color {
     }
 }
 
-fn content_length_for_version(version: usize, mode: ) -> usize {
-    match version {
-        1...10 => 8,
-    }
+// fn content_length_for_version(version: usize, mode: ) -> usize {
+//     match version {
+//         1...10 => 8,
+//     }
     
-}
+// }
 
-pub fn args() -> QROptions {
+pub fn args() -> QRConfig {
     /*
         default options are....
             if no version, the default version is 21
@@ -56,6 +56,7 @@ pub fn args() -> QROptions {
     */
     let mut qr_args = args_os();
     let mut version = 14usize;
+    let mut data: Option<Vec<u8>> = None;
     let encoding = 8u8;
     let mut arg = qr_args.next();
 
@@ -73,15 +74,24 @@ pub fn args() -> QROptions {
                 },
                 None => 21usize
             }
+        } else if value == OsStr::new("-m") {
+            data = match qr_args.next() {
+                Some(msg) => {
+                    let string = String::from(msg.to_str().unwrap());
+                    Some(string.into_bytes())
+                },
+                None => panic!("sdasd")
+            }
         }
 
 
         arg = qr_args.next();
     }
 
-    QROptions {
+    QRConfig {
         version: version,
-        encoding: 8u8,
+        data: data.unwrap(),
+        encoding: 4u8,
         encoding_mode: EncodingMode::Byte,
         requires_alignment: version > 1,
         err_correction_level: ECLevel::Medium,

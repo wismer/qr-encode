@@ -1,5 +1,5 @@
 #[derive(Copy, Clone)]
-pub struct Area {
+pub struct Position {
     pub timing: u8,
     pub msg: u8,
     pub algn: u8,
@@ -31,31 +31,20 @@ enum Direction {
     AlignmentTimingBlock
 }
 
-impl Area {
-    fn get_direction(&self) -> Direction {
-        let row: bool = self.row();
-        let difference = if self.prev_index > self.current_index {
-            self.prev_index - self.current_index
-        } else {
-            self.current_index - self.prev_index
-        };
-
-        if row && self.msg & 0b0001 == 1 || self.free == 0b0110 && self.timing == 0 {
-            Direction::DownRight
-        } else if row && self.msg & 0b0010 == 2 || self.free == 0b1001 || self.free == 0b1101 {
-            Direction::UpRight
-        } else if !row && self.prev_index > self.current_index && self.free & 0b1100 > 0 {
-            Direction::Up
-        } else if !row && self.prev_index < self.current_index && self.free == 0b0010 {
-            Direction::Down
-        } else if row && self.timing == 0b1001 {
-            Direction::UpLeft
-        } else {
-            Direction::Left
+impl Position {
+    pub fn new(start_index: usize) -> Position {
+        Position {
+            free: 0,
+            algn: 0,
+            timing: 0,
+            off: 0,
+            msg: 0,
+            current_index: start_index,
+            prev_index: start_index
         }
     }
 
-    fn guess_direction(&self, prev_area: Area, size: usize) -> Direction {
+    fn guess_direction(&self, prev_area: Position, size: usize) -> Direction {
         if self.free & UPPER_RIGHT == UPPER_RIGHT && prev_area.free & RIGHT == 0 {
             Direction::UpRight
         } else if self.free & LOWER_RIGHT == LOWER_RIGHT && prev_area.free & RIGHT == 0 {
@@ -71,17 +60,7 @@ impl Area {
         }
     }
 
-    // fn for_those_weird_cases(&self, size: usize, prev_area: Area) -> usize {
-        
-    // // }
-
-    // fn timing_aligment_edge_section(&self, size: usize, prev_area: Area) -> usize {
-    //     match self.guess_direction(prev_area, size) {
-            
-    //     }
-    // }
-
-    pub fn near_alignment(&self, size: usize, prev_area: Area) -> usize {
+    pub fn near_alignment(&self, size: usize, prev_area: Position) -> usize {
         match self.guess_direction(prev_area, size) {
             Direction::UpRight => {
                 if self.algn == 0b1001 {
@@ -149,7 +128,7 @@ impl Area {
         }
     }
 
-    pub fn print_binary(&self, size: usize, prev_area: Area) {
+    pub fn print_binary(&self, size: usize, prev_area: Position) {
         println!("Direction: {:?}", self.guess_direction(prev_area, size));
         println!("Point: {}, {}", self.current_index / size, self.current_index % size);
         println!("Alignment {:b}", self.algn);
@@ -169,7 +148,7 @@ impl Area {
         self.current_index % size
     }
 
-    pub fn near_edge(&self, size: usize, prev_area: Area) -> usize {
+    pub fn near_edge(&self, size: usize, prev_area: Position) -> usize {
         match self.guess_direction(prev_area, size) {
             Direction::DownRight => {
                 if self.off == 0b0110 {
@@ -220,7 +199,7 @@ impl Area {
         }
     }
 
-    fn near_timing(&self, size: usize, prev_area: Area) -> usize {
+    fn near_timing(&self, size: usize, prev_area: Position) -> usize {
         match self.guess_direction(prev_area, size) {
             Direction::DownRight => {
                 if self.off == 0b0110 {
@@ -314,10 +293,11 @@ impl Area {
         }
     }
 
-    pub fn adjust_position(&self, size: usize, prev_area: Area) -> usize {
+    pub fn adjust_position(mut self, size: usize, prev_area: Position) -> Position {
         self.print_binary(size, prev_area);
+        let former_index = self.current_index;
 
-        if self.timing > 0 {
+        self.current_index = if self.timing > 0 {
             self.near_timing(size, prev_area)
         } else if self.off > 0 {
             self.near_edge(size, prev_area)
@@ -329,6 +309,10 @@ impl Area {
             self.current_index + size + 1
         } else {
             self.current_index - 1
-        }
+        };
+
+        self.prev_index = former_index;
+
+        self
     }
 }
