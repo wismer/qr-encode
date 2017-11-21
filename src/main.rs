@@ -62,22 +62,4 @@ fn main() {
     }
 
     create_qr_image(qr, &config);
-
-    // let error_correction = Encoder::new(sample.len());
-    // let scrambled_data = error_correction.encode(&sample.into_bytes());
-    // let start_point = (qr.config.size * qr.config.size) - 1;
-    // let mut position: (usize, usize, Area) = qr.encode_chunk(qr.config.encoding, 4, (start_point, start_point, area));
-
-
-    // println!(" ------ {} ------", scrambled_data.len());
-    // for s in sample.into_bytes().into_iter() {
-    // // for s in 0..580 {
-    //     println!("Character: {}, position: {}", s, character_position);
-    //     position = qr.encode_chunk(s as u8, 8, position);
-    //     character_position += 1;
-    // }
-
-    // qr.encode_chunk(10, 10, position);
-
-    // create_qr_image(qr);
 }

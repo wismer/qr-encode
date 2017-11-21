@@ -17,16 +17,17 @@ pub struct QR {
 
 impl QR {
     pub fn encode_meta(&mut self, config: &QRConfig) {
-        let data_length = config.data.len();
+        let data_length = config.data.len() as u8;
         let size_message = config.get_content_length();
-        let size_chunks = size_message - 8;
         let mode = config.encoding;
 
-        self.encode_chunk(&mode, 4, config);
-        // println!("data_length {}, size_message: {}, size_chunks: {}, mode: {:?}", data_length, size_message, size_chunks, mode);
-        // for i in 0..size_chunks {
-        //     self.encode_chunk(&(data_length as u8), size_message << i, config);
-        // }
+        self.encode_chunk(&mode, 4, config); // the encoding mode block
+        self.encode_chunk(&data_length, 8, config);
+        
+        if size_message > 8 {
+            let remaining_bits = data_length.rotate_right(size_message as u32);
+            self.encode_chunk(&remaining_bits, size_message - 8, config);
+        }
     }
 
     pub fn encode_chunk(&mut self, chunk: &u8, chunk_length: usize, config: &QRConfig) {
