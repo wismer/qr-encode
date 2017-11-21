@@ -19,8 +19,8 @@ use self::image_lib::{
 use self::reed_solomon::Encoder;
 
 
-fn create_qr_image(qr: QR) {
-    let dimensions: u32 = (qr.config.size) as u32;
+fn create_qr_image(qr: QR, config: &QRConfig) {
+    let dimensions: u32 = (config.size) as u32;
     let mut img = ImageBuffer::new(dimensions * 20, dimensions * 20);
     for cell in qr.body {
         for pixel in get_pixel_points(&cell) {
@@ -46,15 +46,22 @@ fn main() {
     let start_point = (config.size * config.size) - 1;    
     let mut qr: QR = QR {
         body: config.create_body(),
-        config: config,
         current_position: Position::new(start_point),
         previous_position: Position::new(start_point)
     };
+    
 
-    qr.setup();
-    qr.encode_meta();
-    qr.encode_data();
-    create_qr_image(qr);
+    qr.setup(&config);
+    qr.encode_meta(&config);
+
+    {
+        let data = &config.data;
+        for byte in data.into_iter() {
+            qr.encode_chunk(byte, 8, &config);
+        }
+    }
+
+    create_qr_image(qr, &config);
 
     // let error_correction = Encoder::new(sample.len());
     // let scrambled_data = error_correction.encode(&sample.into_bytes());
