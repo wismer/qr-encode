@@ -46,7 +46,7 @@ impl QR {
                 off: 0,
                 msg: 0,
                 current_index: self.current_position.current_index,
-                prev_index: self.previous_position.prev_index
+                prev_index: self.current_position.prev_index
             };
 
             let current_point: Point = Point::as_point(position.current_index, config.size);
