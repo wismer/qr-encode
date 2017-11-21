@@ -43,6 +43,15 @@ pub fn set_color(index: usize) -> Color {
     
 // }
 
+fn get_ec_level(level: &str) -> ECLevel {
+    match level {
+        "l" => ECLevel::Low,
+        "q" => ECLevel::Q,
+        "h" => ECLevel::High,
+        _ => ECLevel::Medium
+    }
+}
+
 pub fn args() -> QRConfig {
     /*
         default options are....
@@ -57,6 +66,7 @@ pub fn args() -> QRConfig {
     let mut qr_args = args_os();
     let mut version = 14usize;
     let mut data: Option<Vec<u8>> = None;
+    let mut ec_level: ECLevel = ECLevel::Medium;
     let encoding = 8u8;
     let mut arg = qr_args.next();
 
@@ -82,6 +92,14 @@ pub fn args() -> QRConfig {
                 },
                 None => panic!("sdasd")
             }
+        } else if value == OsStr::new("-ec") {
+            ec_level = match qr_args.next() {
+                Some(ec) => {
+                    let ec = ec.to_str().unwrap();
+                    get_ec_level(&ec)
+                },
+                None => ECLevel::Medium
+            }
         }
 
 
@@ -94,7 +112,7 @@ pub fn args() -> QRConfig {
         encoding: 4u8,
         encoding_mode: EncodingMode::Byte,
         requires_alignment: version > 1,
-        err_correction_level: ECLevel::Medium,
+        err_correction_level: ec_level,
         size: (((version - 1) * 4) + 21),
         finder_points: [
             (0, 0),
