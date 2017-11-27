@@ -53,12 +53,14 @@ impl QRConfig {
     pub fn debug_data(&self) {
         let ref data = self.data;
         let ref codewords = self.codewords;
-        for (idx, byte) in codewords.iter().enumerate() {
-            if let Some(data_byte) = data.get(idx + 2) {
-                println!("{:b} original", 112 << 4);
-            }
-            println!("{:b} byte #: {} ", idx, byte);
-        }
+        println!("data {}, codewords {}", data.len(), codewords.len());
+        println!("cw: {:?}", self.codeword_properties);
+        // for (idx, byte) in codewords.iter().enumerate() {
+        //     if let Some(data_byte) = data.get(idx + 2) {
+        //         println!("{:b} original", 112 << 4);
+        //     }
+        //     println!("{:b} byte #: {} ", idx, byte);
+        // }
     }
 
     pub fn translate_data(&mut self) {
@@ -83,6 +85,18 @@ impl QRConfig {
 
                 codewords.push(byte.wrapping_shl(4));
             }
+        }
+
+        let mut swap = false;
+        // pad the end of the message codewords, alternating between 17 and 236
+        while self.codewords.len() < self.codeword_properties.ecc_codeword_count {
+            if swap {
+                self.codewords.push(17u8);
+            } else {
+                self.codewords.push(236u8);
+            }
+
+            swap = !swap;
         }
     }
 
