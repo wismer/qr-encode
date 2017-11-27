@@ -2,15 +2,13 @@ use qr_encoder::cell::{
     Cell,
     Point,
     CellType,
-    Color,
-    PlotPoint
+    Color
 };
 
 use qr_encoder::position::Position;
 use qr_encoder::config::{QRConfig};
 
 pub struct QR {
-    pub config: QRConfig,
     pub body: Vec<Cell>,
     pub current_position: Position,
     pub previous_position: Position
@@ -18,28 +16,22 @@ pub struct QR {
 
 
 impl QR {
-    pub fn encode_meta(&mut self) {
-        let data_length = self.config.data.len();
-        let size_message = self.config.get_content_length();
-        let size_chunks = size_message / 8;
-        let mode = self.config.encoding;
+    pub fn encode_meta(&mut self, config: &QRConfig) {
+        let data_length = config.data.len() as u8;
+        let size_message = config.get_content_length();
+        let mode = config.encoding;
 
-        self.encode_chunk(mode, 4);
+        self.encode_chunk(&mode, 4, config); // the encoding mode block
+        self.encode_chunk(&data_length, 8, config);
 
-        for i in 0..size_chunks {
-            self.encode_chunk(data_length as u8, size_message);
+        if size_message > 8 {
+            let remaining_bits = data_length.rotate_right(size_message as u32);
+            self.encode_chunk(&remaining_bits, size_message - 8, config);
         }
     }
 
-    pub fn encode_data(&mut self) {
-        let mut data = &mut self.config.data;
-        for byte in data.iter() {
-            self.encode_chunk(*byte, 8);
-        }
-    }
-
-    pub fn encode_chunk(&mut self, chunk: u8, chunk_length: usize) {
-        let row_length = self.config.size - 1;
+    pub fn encode_chunk(&mut self, chunk: &u8, chunk_length: usize, config: &QRConfig) {
+        let row_length = config.size - 1;
         let corners: [(isize, isize); 4] = [
             (-1, 1),
             (1, 1),
@@ -55,10 +47,10 @@ impl QR {
                 off: 0,
                 msg: 0,
                 current_index: self.current_position.current_index,
-                prev_index: self.previous_position.prev_index
+                prev_index: self.current_position.prev_index
             };
 
-            let current_point: Point = Point::as_point(position.current_index, self.config.size);
+            let current_point: Point = Point::as_point(position.current_index, config.size);
             let bit = chunk & (1 << i);
             // let color = set_color(i);
             let color: Color = if bit == 0 {
@@ -83,7 +75,7 @@ impl QR {
             while corner_idx < 4 {
                 let corner = corners[corner_idx];
                 let next_point = current_point >> corner;
-                let next_idx = next_point.idx(self.config.size);
+                let next_idx = next_point.idx(config.size);
                 let cell_ref = self.body.get(next_idx);
                 let off_edge = cell_ref.is_none();
 
@@ -110,7 +102,7 @@ impl QR {
 
                 */
 
-                if off_edge || next_point.1 >= self.config.size {
+                if off_edge || next_point.1 >= config.size {
                     position.off ^= 1 << corner_idx;
                     corner_idx += 1;
                     continue;
@@ -146,32 +138,32 @@ impl QR {
 
             // after each corner gets examined, copy the current position context and save it to the previous position context
             self.previous_position = self.current_position;
-            self.current_position = position.adjust_position(self.config.size, self.previous_position);
+            self.current_position = position.adjust_position(config.size, self.previous_position);
         }
     }
 
-    pub fn setup(&mut self) {
-        for alignment_point in self.config.finder_points.iter() {
+    pub fn setup(&mut self, config: &QRConfig) {
+        for alignment_point in config.finder_points.iter() {
             let point = Point(alignment_point.0, alignment_point.1);
-            self.config.apply_finder_patterns(&mut self.body, point);
-            self.config.apply_separators(&mut self.body, *alignment_point);
+            config.apply_finder_patterns(&mut self.body, point);
+            config.apply_separators(&mut self.body, *alignment_point);
         }
 
-        if self.config.version != 1 {
-            let alignment_points = self.config.get_alignment_points(&self.body);
-            self.config.apply_alignment_patterns(&mut self.body, &alignment_points);
+        if config.version != 1 {
+            let alignment_points = config.get_alignment_points(&self.body);
+            config.apply_alignment_patterns(&mut self.body, &alignment_points);
         }
 
-        self.config.apply_timer_patterns(&mut self.body);
-        self.config.apply_dark_module(&mut self.body);
-        self.config.apply_reserve_format_areas(&mut self.body);
+        config.apply_timer_patterns(&mut self.body);
+        config.apply_dark_module(&mut self.body);
+        config.apply_reserve_format_areas(&mut self.body);
 
         // version information area
-        if self.config.version > 6 {
-            self.config.apply_version_information_areas(&mut self.body);
+        if config.version > 6 {
+            config.apply_version_information_areas(&mut self.body);
         }
 
-        println!("LENGTH IS {}, SIZE IS {}, VERSION: {}", self.body.len(), self.config.size, self.config.version);
+        println!("LENGTH IS {}, SIZE IS {}, VERSION: {}", self.body.len(), config.size, config.version);
         println!("--- QR ENCODER READY FOR ENCODING ---");
     }
 }

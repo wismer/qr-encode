@@ -253,36 +253,6 @@ impl Position {
                 } else {
                     self.current_index - 1
                 }
-                // if self.timing == BOTTOM {
-
-                // } else if {
-
-                // }
-                // if prev_area.timing == TOP && self.timing == TOP {
-                //     if prev_area.prev_index == self.current_index + size {
-                //         self.current_index - (size * 2) + 1
-                //     } else {
-                //         self.current_index % size - 1
-                //     }
-                // } else if self.timing == BOTTOM {
-                //     if self.msg == TOP {
-                //         // implies a downward motion
-                //         self.current_index - 1
-                //     } else if self.free == UPPER_LEFT {
-                //         // implies an upward motion if it's not downward?
-                //     } else {
-                //         self.current_index + (size * 2)
-                //     }
-                // } else {
-                //     self.current_index - 1
-                // }
-                // // if self.free & 1 == 1 {
-                // //     self.current_index - size + 1
-                // // } else if self.free == 0b1110 {
-                // //     self.current_index + size + 1
-                // // } else {
-                // //     self.current_index - 1
-                // // }
             },
 
             Direction::UpLeft => {
@@ -294,7 +264,7 @@ impl Position {
     }
 
     pub fn adjust_position(mut self, size: usize, prev_area: Position) -> Position {
-        self.print_binary(size, prev_area);
+        // self.print_binary(size, prev_area);
         let former_index = self.current_index;
 
         self.current_index = if self.timing > 0 {

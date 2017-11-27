@@ -6,7 +6,7 @@ extern crate reed_solomon;
 
 use qr_encoder::qr::QR;
 use qr_encoder::config::{QRConfig};
-use qr_encoder::util::{get_pixel_points, square_count, args};
+use qr_encoder::util::{codeword_info, get_pixel_points, square_count, args, CodeWord};
 use qr_encoder::position::Position;
 
 use std::fs::File;
@@ -19,8 +19,8 @@ use self::image_lib::{
 use self::reed_solomon::Encoder;
 
 
-fn create_qr_image(qr: QR) {
-    let dimensions: u32 = (qr.config.size) as u32;
+fn create_qr_image(qr: QR, config: &QRConfig) {
+    let dimensions: u32 = (config.size) as u32;
     let mut img = ImageBuffer::new(dimensions * 20, dimensions * 20);
     for cell in qr.body {
         for pixel in get_pixel_points(&cell) {
@@ -42,35 +42,28 @@ fn create_qr_image(qr: QR) {
 
 
 fn main() {
-    let config: QRConfig = args();
+    let mut config: QRConfig = args();
+
     let start_point = (config.size * config.size) - 1;    
     let mut qr: QR = QR {
         body: config.create_body(),
-        config: config,
         current_position: Position::new(start_point),
         previous_position: Position::new(start_point)
     };
 
-    qr.setup();
-    qr.encode_meta();
-    qr.encode_data();
-    create_qr_image(qr);
+    config.verify_version();
+    config.translate_data();
+    // config.debug_data();
 
-    // let error_correction = Encoder::new(sample.len());
-    // let scrambled_data = error_correction.encode(&sample.into_bytes());
-    // let start_point = (qr.config.size * qr.config.size) - 1;
-    // let mut position: (usize, usize, Area) = qr.encode_chunk(qr.config.encoding, 4, (start_point, start_point, area));
+    // qr.setup(&config);
+    // qr.encode_meta(&config);
 
-
-    // println!(" ------ {} ------", scrambled_data.len());
-    // for s in sample.into_bytes().into_iter() {
-    // // for s in 0..580 {
-    //     println!("Character: {}, position: {}", s, character_position);
-    //     position = qr.encode_chunk(s as u8, 8, position);
-    //     character_position += 1;
+    // {
+    //     let data = &config.data;
+    //     for byte in data.into_iter() {
+    //         qr.encode_chunk(byte, 8, &config);
+    //     }
     // }
 
-    // qr.encode_chunk(10, 10, position);
-
-    // create_qr_image(qr);
+    // create_qr_image(qr, &config);
 }
