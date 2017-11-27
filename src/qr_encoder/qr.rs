@@ -23,7 +23,7 @@ impl QR {
 
         self.encode_chunk(&mode, 4, config); // the encoding mode block
         self.encode_chunk(&data_length, 8, config);
-        
+
         if size_message > 8 {
             let remaining_bits = data_length.rotate_right(size_message as u32);
             self.encode_chunk(&remaining_bits, size_message - 8, config);

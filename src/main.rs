@@ -6,7 +6,7 @@ extern crate reed_solomon;
 
 use qr_encoder::qr::QR;
 use qr_encoder::config::{QRConfig};
-use qr_encoder::util::{get_pixel_points, square_count, args};
+use qr_encoder::util::{codeword_info, get_pixel_points, square_count, args, CodeWord};
 use qr_encoder::position::Position;
 
 use std::fs::File;
@@ -42,24 +42,28 @@ fn create_qr_image(qr: QR, config: &QRConfig) {
 
 
 fn main() {
-    let config: QRConfig = args();
+    let mut config: QRConfig = args();
+
     let start_point = (config.size * config.size) - 1;    
     let mut qr: QR = QR {
         body: config.create_body(),
         current_position: Position::new(start_point),
         previous_position: Position::new(start_point)
     };
-    
 
-    qr.setup(&config);
-    qr.encode_meta(&config);
+    config.verify_version();
+    config.translate_data();
+    // config.debug_data();
 
-    {
-        let data = &config.data;
-        for byte in data.into_iter() {
-            qr.encode_chunk(byte, 8, &config);
-        }
-    }
+    // qr.setup(&config);
+    // qr.encode_meta(&config);
 
-    create_qr_image(qr, &config);
+    // {
+    //     let data = &config.data;
+    //     for byte in data.into_iter() {
+    //         qr.encode_chunk(byte, 8, &config);
+    //     }
+    // }
+
+    // create_qr_image(qr, &config);
 }

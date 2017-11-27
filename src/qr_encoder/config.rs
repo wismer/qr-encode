@@ -5,6 +5,7 @@ use qr_encoder::cell::{
     Color,
     PlotPoint
 };
+use qr_encoder::util::{CodeWord, codeword_info};
 
 pub enum ECLevel {
     Low,
@@ -23,6 +24,8 @@ pub enum EncodingMode {
 pub struct QRConfig {
     pub version: usize,
     pub data: Vec<u8>,
+    pub codewords: Vec<u8>,
+    pub codeword_properties: CodeWord,
     pub encoding: u8, // for now - should be its own sub-type.
     pub encoding_mode: EncodingMode,
     pub requires_alignment: bool,
@@ -32,6 +35,57 @@ pub struct QRConfig {
 }
 
 impl QRConfig {
+    pub fn verify_version(&mut self) {
+        // TODO!
+        // let content_length = self.get_content_length();
+        // println!("{:?} CL: {}", self.codeword_properties, content_length);
+        // let data_length = self.data.len();
+
+        // if data_length + 2 > self.codeword_properties.ecc_codeword_count {
+        //     // data content is too large for the version size, so change the version to match.
+        //     // TODO
+        // } else if data_length + 2 < self.codeword_properties.ecc_codeword_count {
+        //     // TODO: if someone wants to use version 20 when the data is only 4 bytes...
+
+        // }
+    }
+
+    pub fn debug_data(&self) {
+        let ref data = self.data;
+        let ref codewords = self.codewords;
+        for (idx, byte) in codewords.iter().enumerate() {
+            if let Some(data_byte) = data.get(idx + 2) {
+                println!("{:b} original", 112 << 4);
+            }
+            println!("{:b} byte #: {} ", idx, byte);
+        }
+    }
+
+    pub fn translate_data(&mut self) {
+        // let mut data_length = self.data.len();
+        let mut data_length = 237usize;
+        let mut content_length = self.get_content_length();
+        let mut encoding = self.encoding;
+        let copied_data = self.data.clone();
+
+        {
+            let mut codewords = &mut self.codewords;
+            let mut current_byte = (encoding << 4) ^ data_length.rotate_right(4) as u8;
+
+            codewords.push(current_byte);
+            codewords.push(data_length.rotate_left(4) as u8);
+
+            for byte in copied_data.iter() {
+                {
+                    let prev = codewords.last_mut().unwrap();
+                    *prev ^= byte.wrapping_shr(4);
+                }
+
+                codewords.push(byte.wrapping_shl(4));
+            }
+        }
+    }
+
     pub fn create_body(&self) -> Vec<Cell> {
         // this can be refactored so it just iterates going from 0 to max-index
         let mut rows: Vec<Cell> = vec![];
