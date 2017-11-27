@@ -15,9 +15,9 @@ pub struct CodeWordBlock(usize, usize, usize, usize);
 
 #[derive(Debug)]
 pub struct CodeWord {
-    ecc_codeword_count: usize,
-    block_count: usize,
-    capacity: usize
+    pub ecc_codeword_count: usize,
+    pub block_count: usize,
+    pub capacity: usize
 }
 
 const CODEWORD_COUNT: [usize; 41] = [

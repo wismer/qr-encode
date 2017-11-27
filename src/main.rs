@@ -53,7 +53,7 @@ fn main() {
 
     config.verify_version();
     config.translate_data();
-    // config.debug_data();
+    config.debug_data();
 
     // qr.setup(&config);
     // qr.encode_meta(&config);
