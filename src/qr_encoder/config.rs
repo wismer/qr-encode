@@ -35,6 +35,10 @@ pub struct QRConfig {
 }
 
 impl QRConfig {
+    pub fn get_ecc_length(&self) -> usize {
+        self.codeword_properties.ecc_codeword_count
+    }
+
     pub fn verify_version(&mut self) {
         // TODO!
         // let content_length = self.get_content_length();

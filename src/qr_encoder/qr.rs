@@ -51,7 +51,8 @@ impl QR {
             };
 
             let current_point: Point = Point::as_point(position.current_index, config.size);
-            let bit = chunk & (1 << i);
+
+            let bit = chunk & (1 << (chunk_length - i) - 1);
             // let color = set_color(i);
             let color: Color = if bit == 0 {
                 Color { r: 255, g: 255, b: 255 }

@@ -115,8 +115,8 @@ const EC_CODEWORD_TABLE: [ECCodeWordCount; 40] = [
 ];
 
 pub fn codeword_info(version: usize, err_correction_level: &ECLevel) -> CodeWord {
-    let ecc_settings: ECCodeWordCount = EC_CODEWORD_TABLE[version];
-    let block_count = CODEWORD_BLOCKS[version];
+    let ecc_settings: ECCodeWordCount = EC_CODEWORD_TABLE[version - 1];
+    let block_count = CODEWORD_BLOCKS[version - 1];
     let capacity = CODEWORD_COUNT[version];
 
     let (ec_cw_count, blocks): (usize, usize) = match err_correction_level {

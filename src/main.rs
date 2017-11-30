@@ -53,17 +53,24 @@ fn main() {
 
     config.verify_version();
     config.translate_data();
-    config.debug_data();
+    let encoder = Encoder::new(config.get_ecc_length());
+    let encoded = encoder.encode(&config.codewords);
+    println!("{:?}", config.codeword_properties);
+    println!("{:?}", encoded);
+    println!("error correction code: {:?}", encoded.ecc());
 
-    // qr.setup(&config);
-    // qr.encode_meta(&config);
+    if config.codeword_properties.block_count > 1 {
+        config.interleave_codewords();
+    }
+    // let data = config.data.clone();
+    qr.setup(&config);
 
-    // {
-    //     let data = &config.data;
-    //     for byte in data.into_iter() {
-    //         qr.encode_chunk(byte, 8, &config);
-    //     }
-    // }
+    {
+        let data = &encoded[..];
+        for byte in data.iter() {
+            qr.encode_chunk(&byte, 8, &config);
+        }
+    }
 
-    // create_qr_image(qr, &config);
+    create_qr_image(qr, &config);
 }
