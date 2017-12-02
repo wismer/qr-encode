@@ -1,3 +1,7 @@
+extern crate reed_solomon;
+
+use self::reed_solomon::Encoder;
+
 use qr_encoder::cell::{
     Cell,
     Point,
@@ -6,6 +10,7 @@ use qr_encoder::cell::{
     PlotPoint
 };
 use qr_encoder::util::{CodeWord, codeword_info};
+
 
 pub enum ECLevel {
     Low,
@@ -67,9 +72,32 @@ impl QRConfig {
         // }
     }
 
+    pub fn encode_error_correction_codewords(&mut self) {
+        let data_codewords = &mut self.codewords;
+        let mut data: Vec<u8> = vec![];
+        let ecc_len = self.codeword_properties.ecc_codeword_count;
+        let encoder = Encoder::new(ecc_len);
+        let data_codeword_block_length = self.codeword_properties.capacity - ecc_len;
+
+        for data_cw_chunk in data_codewords.chunks(data_codeword_block_length) {   
+            // with a slice of the data codewords, load the encoder
+            let encoded = encoder.encode(data_cw_chunk);
+
+            // first set in the data codewords
+            let mut data_cw = data_cw_chunk.to_vec();
+            data.append(&mut data_cw);
+
+            // then set in the error correction codewords
+            let mut error_correction_codewords = encoded.ecc().to_vec();
+            data.append(&mut error_correction_codewords);
+
+        }
+        println!("length {:?}", data_codewords);
+        *data_codewords = data;
+    }
+
     pub fn translate_data(&mut self) {
-        // let mut data_length = self.data.len();
-        let mut data_length = 237usize;
+        let mut data_length = self.data.len();
         let mut content_length = self.get_content_length();
         let mut encoding = self.encoding;
         let copied_data = self.data.clone();
@@ -92,8 +120,10 @@ impl QRConfig {
         }
 
         let mut swap = false;
-        // pad the end of the message codewords, alternating between 17 and 236
-        while self.codewords.len() < self.codeword_properties.ecc_codeword_count {
+
+        // pad the end of the message codewords, alternating between 17 and 236, until it fills the allotted amount for the version
+        let data_cw_length = self.codeword_properties.get_data_codeword_length();
+        while self.codewords.len() < data_cw_length {
             if swap {
                 self.codewords.push(17u8);
             } else {

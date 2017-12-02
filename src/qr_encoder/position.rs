@@ -292,7 +292,6 @@ impl Position {
                     
                 // }
 
-
                 if self.timing == BOTTOM && prev_area.free == UPPER_LEFT {
                     self.current_index - size + 1
                 } else if self.timing == BOTTOM && self.prev_index == self.current_index + 1 && prev_area.prev_index < self.current_index {

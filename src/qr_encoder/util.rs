@@ -114,6 +114,16 @@ const EC_CODEWORD_TABLE: [ECCodeWordCount; 40] = [
     ECCodeWordCount(750, 1372, 2040, 2430)
 ];
 
+impl CodeWord {
+    pub fn get_data_codeword_length(&self) -> usize {
+        self.capacity - self.get_total_error_correction_codewords()
+    }
+
+    pub fn get_total_error_correction_codewords(&self) -> usize {
+        self.block_count * self.ecc_codeword_count
+    }
+}
+
 pub fn codeword_info(version: usize, err_correction_level: &ECLevel) -> CodeWord {
     let ecc_settings: ECCodeWordCount = EC_CODEWORD_TABLE[version - 1];
     let block_count = CODEWORD_BLOCKS[version - 1];

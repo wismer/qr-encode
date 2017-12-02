@@ -3,7 +3,6 @@ pub mod qr_encoder;
 extern crate image as image_lib;
 extern crate reed_solomon;
 
-
 use qr_encoder::qr::QR;
 use qr_encoder::config::{QRConfig};
 use qr_encoder::util::{codeword_info, get_pixel_points, square_count, args, CodeWord};
@@ -53,20 +52,17 @@ fn main() {
 
     config.verify_version();
     config.translate_data();
-    let encoder = Encoder::new(config.get_ecc_length());
-    let encoded = encoder.encode(&config.codewords);
-    println!("{:?}", config.codeword_properties);
-    println!("{:?}", encoded);
-    println!("error correction code: {:?}", encoded.ecc());
-
-    if config.codeword_properties.block_count > 1 {
-        config.interleave_codewords();
-    }
-    // let data = config.data.clone();
-    qr.setup(&config);
 
     {
-        let data = &encoded[..];
+        let mut c = &mut config;
+        c.encode_error_correction_codewords();
+    }
+
+    qr.setup(&config);
+    println!("{:?}", config.codewords);
+
+    {
+        let data = &config.codewords[..];
         for byte in data.iter() {
             qr.encode_chunk(&byte, 8, &config);
         }
