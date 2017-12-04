@@ -116,11 +116,19 @@ const EC_CODEWORD_TABLE: [ECCodeWordCount; 40] = [
 
 impl CodeWord {
     pub fn get_data_codeword_length(&self) -> usize {
-        self.capacity - self.get_total_error_correction_codewords()
+        self.capacity - self.ecc_codeword_count
     }
 
-    pub fn get_total_error_correction_codewords(&self) -> usize {
-        self.block_count * self.ecc_codeword_count
+    pub fn get_block_count_for_groups(&self) -> (usize, usize) {
+        let group_two = self.capacity % self.block_count;
+        let group_one = self.block_count - group_two;
+
+        (group_one, group_two)
+    }
+
+    pub fn get_data_cw_total_for_groups(&self) -> (usize, usize) {
+        let subtotal = self.capacity / self.block_count;
+        (subtotal, subtotal + 1)
     }
 }
 
