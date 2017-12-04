@@ -127,7 +127,7 @@ impl CodeWord {
     }
 
     pub fn get_data_cw_total_for_groups(&self) -> (usize, usize) {
-        let subtotal = self.capacity / self.block_count;
+        let subtotal = (self.capacity - self.ecc_codeword_count) / self.block_count;
         (subtotal, subtotal + 1)
     }
 }
