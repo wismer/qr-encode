@@ -1,6 +1,6 @@
 extern crate reed_solomon;
 
-use self::reed_solomon::Encoder;
+use self::reed_solomon::{Encoder, Buffer};
 
 use qr_encoder::cell::{
     Cell,
@@ -39,6 +39,31 @@ pub struct QRConfig {
     pub err_correction_level: ECLevel
 }
 
+trait BufferState {
+    fn data_get(&self, idx: usize) -> Option<u8>;
+    fn err_get(&self, idx: usize) -> Option<u8>;
+}
+
+impl BufferState for Buffer {
+    fn data_get(&self, idx: usize) -> Option<u8> {
+        if let Some(cw) = self.data().get(idx) {
+            Some(*cw)
+        } else {
+            None
+        }        
+    }
+
+    fn err_get(&self, idx: usize) -> Option<u8> {
+        if let Some(cw) = self.ecc().get(idx) {
+            Some(*cw)
+        } else {
+            None
+        }
+    }
+    
+}
+
+
 impl QRConfig {
     pub fn get_ecc_length(&self) -> usize {
         self.codeword_properties.ecc_codeword_count
@@ -73,27 +98,51 @@ impl QRConfig {
     }
 
     pub fn encode_error_correction_codewords(&mut self) {
-        let data_codewords = &mut self.codewords;
-        let mut data: Vec<u8> = vec![];
         let ecc_len = self.codeword_properties.ecc_codeword_count;
         let encoder = Encoder::new(ecc_len);
+        let (group_one_total_data, group_two_total_data) = self.codeword_properties.get_data_cw_total_for_groups();
+        let (group_one_blocks, group_two_blocks) = self.codeword_properties.get_block_count_for_groups();
         let data_codeword_block_length = self.codeword_properties.capacity - ecc_len;
+        let data_codewords = &mut self.codewords;
 
-        for data_cw_chunk in data_codewords.chunks(data_codeword_block_length) {   
-            // with a slice of the data codewords, load the encoder
-            let encoded = encoder.encode(data_cw_chunk);
+        let mut data: Vec<Buffer> = vec![];
+        let mut data_section: Vec<u8> = vec![];
+        let mut ecc_section: Vec<u8> = vec![];
 
-            // first set in the data codewords
-            let mut data_cw = data_cw_chunk.to_vec();
-            data.append(&mut data_cw);
+        {
+            let (first, second) = data_codewords.split_at(group_one_total_data * group_one_blocks);
 
-            // then set in the error correction codewords
-            let mut error_correction_codewords = encoded.ecc().to_vec();
-            data.append(&mut error_correction_codewords);
+            for chunk in first.chunks(group_one_total_data) {
+                let buffer = encoder.encode(chunk);
+                data.push(buffer);
+            }
 
+            for chunk in second.chunks(group_two_total_data) {
+                let buffer = encoder.encode(chunk);
+                data.push(buffer);
+            }
+
+            let ecc_per_block = ecc_len / self.codeword_properties.block_count;
+
+            for i in 0..ecc_per_block {
+                for block in data.clone() {
+                    if let Some(cw) = block.data_get(i) {
+                        data_section.push(cw);
+                    }
+
+                    if let Some(cw) = block.err_get(i) {
+                        ecc_section.push(cw);
+                    }
+                }
+            }
+
+            data_section.append(&mut ecc_section);
         }
-        println!("length {:?}", data_codewords);
-        *data_codewords = data;
+
+        println!("PROPERTIES: {:?}", self.codeword_properties);
+        println!("CONTENT LENGTH: {}", data_codewords.len());
+
+        *data_codewords = data_section;
     }
 
     pub fn translate_data(&mut self) {
