@@ -98,23 +98,17 @@ impl QRConfig {
     }
 
     pub fn encode_error_correction_codewords(&mut self) {
-        let data_codewords = &mut self.codewords;
-        println!("LENGTH: {}", data_codewords.len());
-        let mut data: Vec<Buffer> = vec![];
         let ecc_len = self.codeword_properties.ecc_codeword_count;
         let encoder = Encoder::new(ecc_len);
-        let block_count = self.codeword_properties.capacity % self.codeword_properties.block_count;
         let (group_one_total_data, group_two_total_data) = self.codeword_properties.get_data_cw_total_for_groups();
         let (group_one_blocks, group_two_blocks) = self.codeword_properties.get_block_count_for_groups();
-        let total_err_codewords = self.codeword_properties.ecc_codeword_count;
         let data_codeword_block_length = self.codeword_properties.capacity - ecc_len;
+        let data_codewords = &mut self.codewords;
 
+        let mut data: Vec<Buffer> = vec![];
         let mut data_section: Vec<u8> = vec![];
         let mut ecc_section: Vec<u8> = vec![];
 
-        println!("{:?}", self.codeword_properties);
-        println!("block len {}", data_codeword_block_length);
-        // for group one....
         {
             let (first, second) = data_codewords.split_at(group_one_total_data * group_one_blocks);
 
@@ -128,8 +122,7 @@ impl QRConfig {
                 data.push(buffer);
             }
 
-            let ecc_per_block = total_err_codewords / self.codeword_properties.block_count;
-            println!("ecc per block {}", ecc_per_block);
+            let ecc_per_block = ecc_len / self.codeword_properties.block_count;
 
             for i in 0..ecc_per_block {
                 for block in data.clone() {
@@ -145,6 +138,9 @@ impl QRConfig {
 
             data_section.append(&mut ecc_section);
         }
+
+        println!("PROPERTIES: {:?}", self.codeword_properties);
+        println!("CONTENT LENGTH: {}", data_codewords.len());
 
         *data_codewords = data_section;
     }
