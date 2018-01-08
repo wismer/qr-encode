@@ -46,6 +46,7 @@ impl QR {
                 timing: 0,
                 off: 0,
                 msg: 0,
+                size: config.size,
                 current_index: self.current_position.current_index,
                 prev_index: self.current_position.prev_index
             };

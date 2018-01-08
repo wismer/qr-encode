@@ -46,8 +46,8 @@ fn main() {
     let start_point = (config.size * config.size) - 1;    
     let mut qr: QR = QR {
         body: config.create_body(),
-        current_position: Position::new(start_point),
-        previous_position: Position::new(start_point)
+        current_position: Position::new(start_point, config.size),
+        previous_position: Position::new(start_point, config.size)
     };
 
     config.verify_version();

@@ -5,6 +5,7 @@ pub struct Position {
     pub algn: u8,
     pub off: u8,
     pub free: u8,
+    pub size: usize,
     pub current_index: usize,
     pub prev_index: usize
 }
@@ -44,13 +45,14 @@ enum DirectionEvent {
 }
 
 impl Position {
-    pub fn new(start_index: usize) -> Position {
+    pub fn new(start_index: usize, size: usize) -> Position {
         Position {
             free: 0,
             algn: 0,
             timing: 0,
             off: 0,
             msg: 0,
+            size: size,
             current_index: start_index,
             prev_index: start_index
         }
@@ -73,49 +75,67 @@ impl Position {
     }
 
     fn timing_offside(&self, size: usize, prev_area: Position) -> usize {
-        match self.guess_direction(prev_area, size) {
-            Direction::UpRight => self.current_index - size + 1,
-            Direction::DownRight => self.current_index + size + 1,
-            Direction::Down => self.current_index + size,
-            Direction::Up => self.current_index - size,
-            Direction::Left => {
-                if self.current_index % size == 7 {
-                    self.current_index - 2 // left-hand timing pattern cross-over
-                } else if self.current_index == self.prev_index - 1 {
-                    self.current_index + (size * 2) + 1
-                } else {
+        let row_diff = self.rows_from(prev_area.prev_index);
+
+        match self.off {
+            RIGHT => self.current_index - 1,
+            BOTTOM => {
+                if prev_area.off == BOTTOM {
                     self.current_index - 1
+                } else {
+                    self.current_index - size + 1
                 }
             }
-            _ => self.current_index - 1
         }
-    }
-
-    fn timing_alignment(&self, size: usize, prev_area: Position) -> usize {
-        self.current_index - 1
         // match self.guess_direction(prev_area, size) {
-        //     Direction::UpRight => {
-                
-        //     },
-
-        //     Direction::DownRight => {
-
-        //     },
-
-        //     Direction::Down => {
-
-        //     },
-
-        //     Direction::Up => {
-
-        //     },
-
+        //     Direction::UpRight => self.current_index - size + 1,
+        //     Direction::DownRight => self.current_index + size + 1,
+        //     Direction::Down => self.current_index + size,
+        //     Direction::Up => self.current_index - size,
         //     Direction::Left => {
-
-        //     },
-
+        //         if self.current_index % size == 7 {
+        //             self.current_index - 2 // left-hand timing pattern cross-over
+        //         } else if self.current_index == self.prev_index - 1 {
+        //             self.current_index + (size * 2) + 1
+        //         } else {
+        //             self.current_index - 1
+        //         }
+        //     }
         //     _ => self.current_index - 1
         // }
+    }
+
+    fn columns_from(&self, index: usize) -> isize {
+        (self.current_index % self.size) as isize - (index % self.size) as isize
+    }
+
+
+    // Positive value denotes a "downward" trajectory, negative "upwards"
+    fn rows_from(&self, index: usize) -> isize {
+        (self.current_index / self.size) as isize - (index / self.size) as isize
+    }
+
+    fn near_timing(&self, prev_area: Position) -> usize {
+        let row_diff = self.rows_from(prev_area.prev_index);
+        let col_diff = self.columns_from(prev_area.prev_index);
+        println!("row diff: {}, col diff: {}", row_diff, col_diff);
+
+        if col_diff > 1 || col_diff < -1 {
+            self.current_index - 1 // for now
+        } else {
+            match row_diff {
+                -2 | 2 => self.current_index - 1,
+                -1 | 1 => self.current_index - 1,
+                0 => {
+                    if self.timing == BOTTOM {
+                        self.current_index + (self.size * 2) + 1
+                    } else {
+                        self.current_index - (self.size * 2) + 1
+                    }
+                },
+                _    => panic!("Ruh Roh current")
+            }            
+        }
     }
 
     pub fn near_alignment(&self, size: usize, prev_area: Position) -> usize {
@@ -206,6 +226,10 @@ impl Position {
         self.current_index % size
     }
 
+    fn timing_alignment(&self, size: usize, prev_area: Position) -> usize {
+        self.current_index - 1
+    }
+
     pub fn near_edge(&self, size: usize, prev_area: Position) -> usize {
         match self.guess_direction(prev_area, size) {
             Direction::DownRight => {
@@ -255,74 +279,6 @@ impl Position {
         }
     }
 
-    fn near_timing(&self, size: usize, prev_area: Position) -> usize {
-        match self.guess_direction(prev_area, size) {
-            Direction::DownRight => {
-                if self.off == 0b0110 {
-                    self.current_index - 1
-                } else {
-                    self.current_index + size + 1
-                }
-            },
-
-            Direction::Up => {
-                if self.algn == RIGHT && self.timing == UPPER_LEFT {
-                    self.current_index - (size * 2)
-                } else {
-                    self.current_index - size
-                }
-            },
-
-            Direction::Down => self.current_index + (size * 2),
-
-            Direction::JumpLeft => self.current_index % size - 1,
-
-            Direction::UpRight => {
-                if self.free & 0b0011 == 0 {
-                    self.current_index - 1
-                } else if self.off == 0b1001 {
-                    self.current_index - 1                    
-                } else {
-                    self.current_index - size + 1
-                }
-            },
-
-            Direction::Left => {
-                // if self.timing == TOP && self.prev_index == self.current_index + 1 {
-                    
-                // }
-
-                if self.timing == BOTTOM && prev_area.free == UPPER_LEFT {
-                    self.current_index - size + 1
-                } else if self.timing == BOTTOM && self.prev_index == self.current_index + 1 && prev_area.prev_index < self.current_index {
-                    self.current_index + (size * 2) + 1
-                } else if self.timing == TOP && prev_area.off & prev_area.timing == TOP && prev_area.prev_index > self.current_index {
-                    self.current_index - 1
-                } else if self.timing == TOP && prev_area.timing == BOTTOM {
-                    self.current_index - 1
-                } else if self.timing == TOP && self.prev_index == self.current_index + 1 {
-                    self.current_index - (size * 2) + 1
-                } else if self.algn == LEFT && self.free == 0 {
-                    self.current_index + (size * 2) + 1
-                } else if self.off == LEFT {
-                    self.current_index + (size * 2) + 1
-                } else if self.off == TOP && self.prev_index - self.current_index == 1 {
-                    self.current_index - 2
-                } else if self.algn == TOP && self.timing == LOWER_LEFT {
-                    self.current_index - (size * 6) + 1
-                } else {
-                    self.current_index - 1
-                }
-            },
-
-            Direction::UpLeft => {
-                self.current_index % size - 1
-            },
-
-            _ => self.current_index - 1
-        }
-    }
-
     pub fn adjust_position(mut self, size: usize, prev_area: Position) -> Position {
         // self.print_binary(size, prev_area);
         let former_index = self.current_index;
@@ -332,7 +288,7 @@ impl Position {
         } else if self.timing > 0 && self.off > 0 {
             self.timing_offside(size, prev_area)
         } else if self.timing > 0 {
-            self.near_timing(size, prev_area)
+            self.near_timing(prev_area)
         } else if self.off > 0 {
             self.near_edge(size, prev_area)
         } else if self.algn > 0 {
