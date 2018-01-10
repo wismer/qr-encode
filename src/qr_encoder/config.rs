@@ -33,6 +33,7 @@ pub struct QRConfig {
     pub codeword_properties: CodeWord,
     pub encoding: u8, // for now - should be its own sub-type.
     pub encoding_mode: EncodingMode,
+    pub debug_mode: bool,
     pub requires_alignment: bool,
     pub finder_points: [(usize, usize); 3],
     pub size: usize,
@@ -50,7 +51,7 @@ impl BufferState for Buffer {
             Some(*cw)
         } else {
             None
-        }        
+        }
     }
 
     fn err_get(&self, idx: usize) -> Option<u8> {
@@ -60,7 +61,7 @@ impl BufferState for Buffer {
             None
         }
     }
-    
+
 }
 
 

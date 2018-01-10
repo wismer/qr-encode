@@ -23,7 +23,7 @@ const RIGHT: u8 = LOWER_RIGHT | UPPER_RIGHT;
 enum Direction {
     Left,
     Up,
-    UpRight,    
+    UpRight,
     UpLeft,
     Down,
     DownLeft,
@@ -74,9 +74,38 @@ impl Position {
         }
     }
 
+    fn near_offside(&self, size: usize, prev_area: Position) -> usize {
+        let row_diff = self.rows_from(prev_area.prev_index);
+        match self.off {
+            RIGHT => self.current_index - 1,
+            BOTTOM => {
+                if row_diff == 2 || row_diff == 0 {
+                    self.current_index - size + 1
+                } else {
+                    self.current_index - 1
+                }
+            },
+            TOP => {
+                if row_diff == -2 {
+                    self.current_index + size + 1
+                } else {
+                    self.current_index - 1
+                }
+            },
+            _ => {
+                if row_diff == 2 {
+                    self.current_index - size + 1
+                } else if row_diff == -2 {
+                    self.current_index + size + 1
+                } else {
+                    self.current_index - 1
+                }
+            }
+        }
+    }
+
     fn timing_offside(&self, size: usize, prev_area: Position) -> usize {
         let row_diff = self.rows_from(prev_area.prev_index);
-
         match self.off {
             RIGHT => self.current_index - 1,
             BOTTOM => {
@@ -85,7 +114,8 @@ impl Position {
                 } else {
                     self.current_index - size + 1
                 }
-            }
+            },
+            _ => self.current_index - 1
         }
         // match self.guess_direction(prev_area, size) {
         //     Direction::UpRight => self.current_index - size + 1,
@@ -118,7 +148,7 @@ impl Position {
     fn near_timing(&self, prev_area: Position) -> usize {
         let row_diff = self.rows_from(prev_area.prev_index);
         let col_diff = self.columns_from(prev_area.prev_index);
-        println!("row diff: {}, col diff: {}", row_diff, col_diff);
+        // println!("row diff: {}, col diff: {}", row_diff, col_diff);
 
         if col_diff > 1 || col_diff < -1 {
             self.current_index - 1 // for now
@@ -134,7 +164,7 @@ impl Position {
                     }
                 },
                 _    => panic!("Ruh Roh current")
-            }            
+            }
         }
     }
 
@@ -290,7 +320,7 @@ impl Position {
         } else if self.timing > 0 {
             self.near_timing(prev_area)
         } else if self.off > 0 {
-            self.near_edge(size, prev_area)
+            self.near_offside(size, prev_area)
         } else if self.algn > 0 {
             self.near_alignment(size, prev_area)
         } else if self.msg == 0b0010 {

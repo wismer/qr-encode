@@ -7,6 +7,7 @@ use qr_encoder::cell::{
 
 use qr_encoder::position::Position;
 use qr_encoder::config::{QRConfig};
+use qr_encoder::util::{set_color};
 
 pub struct QR {
     pub body: Vec<Cell>,
@@ -38,7 +39,7 @@ impl QR {
             (1, -1),
             (-1, -1)
         ];
-    
+
         for i in 0..chunk_length {
             let mut position = Position {
                 free: 0,
@@ -54,8 +55,9 @@ impl QR {
             let current_point: Point = Point::as_point(position.current_index, config.size);
 
             let bit = chunk & (1 << (chunk_length - i) - 1);
-            // let color = set_color(i);
-            let color: Color = if bit == 0 {
+            let color: Color = if config.debug_mode {
+                set_color(i)
+            } else if bit == 0 {
                 Color { r: 255, g: 255, b: 255 }
             } else {
                 Color { r: 0, g: 0, b: 0 }

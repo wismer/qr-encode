@@ -253,9 +253,9 @@ fn get_ec_level(level: &str) -> ECLevel {
 //         codewords.push(first_part as u8);
 //         codewords.push(second_part as u8);
 //     } else {
-// 
+//
 //     }
-// 
+//
 // }
 
 pub fn args() -> QRConfig {
@@ -275,6 +275,7 @@ pub fn args() -> QRConfig {
     let mut ec_level: ECLevel = ECLevel::Medium;
     let encoding = 4u8;
     let mut arg = qr_args.next();
+    let mut debug_mode = false;
 
     while arg.is_some() {
         let value = arg.unwrap();
@@ -306,6 +307,8 @@ pub fn args() -> QRConfig {
                 },
                 None => ECLevel::Medium
             }
+        } else if value == OsStr::new("-DEBUG") {
+            debug_mode = true;
         }
 
 
@@ -319,6 +322,7 @@ pub fn args() -> QRConfig {
         codeword_properties: codeword_info(version, &ec_level),
         encoding: 4u8,
         encoding_mode: EncodingMode::Byte,
+        debug_mode: debug_mode,
         requires_alignment: version > 1,
         err_correction_level: ec_level,
         size: (((version - 1) * 4) + 21),
