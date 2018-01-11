@@ -1,4 +1,4 @@
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Position {
     pub timing: u8,
     pub msg: u8,
@@ -18,6 +18,11 @@ const TOP: u8 = UPPER_RIGHT | UPPER_LEFT;
 const BOTTOM: u8 = LOWER_RIGHT | LOWER_LEFT;
 const LEFT: u8 = LOWER_LEFT | UPPER_LEFT;
 const RIGHT: u8 = LOWER_RIGHT | UPPER_RIGHT;
+const UR_CORNER: u8 = RIGHT | UPPER_LEFT;
+const LR_CORNER: u8 = RIGHT | LOWER_LEFT;
+const LL_CORNER: u8 = LEFT | LOWER_RIGHT;
+const UL_CORNER: u8 = LEFT | UPPER_RIGHT;
+const ALL_CORNER: u8 = TOP | BOTTOM;
 
 #[derive(Debug)]
 enum Direction {
@@ -76,36 +81,33 @@ impl Position {
 
     fn near_offside(&self, size: usize, prev_area: Position) -> usize {
         let row_diff = self.rows_from(prev_area.prev_index);
+
         match self.off {
+            UR_CORNER | LR_CORNER => self.current_index - 1,
             RIGHT => self.current_index - 1,
-            BOTTOM => {
-                if row_diff == 2 || row_diff == 0 {
-                    self.current_index - size + 1
-                } else {
-                    self.current_index - 1
-                }
-            },
-            TOP => {
-                if row_diff == -2 {
-                    self.current_index + size + 1
-                } else {
-                    self.current_index - 1
-                }
-            },
-            _ => {
-                if row_diff == 2 {
-                    self.current_index - size + 1
-                } else if row_diff == -2 {
-                    self.current_index + size + 1
-                } else {
-                    self.current_index - 1
-                }
-            }
+            BOTTOM if self.free == TOP => self.current_index - size + 1,
+            BOTTOM if self.free == UPPER_LEFT => self.current_index - 1,
+            TOP if self.free == 0 => self.current_index - 1,
+            TOP if self.free == LOWER_LEFT => self.current_index - 1,
+            TOP if self.free == BOTTOM => self.current_index + size + 1,
+            UPPER_RIGHT if self.free == ALL_CORNER ^ UPPER_RIGHT => self.current_index + 1 + size,
+            UPPER_LEFT if self.free & LOWER_RIGHT == LOWER_RIGHT => self.current_index + 1 + size,
+            // TOP => {
+            //     if self.msg == LOWER_RIGHT {
+            //         self.current_index - 1
+            //     } else if row_diff == -2 || row_diff == 0 {
+            //         self.current_index + size + 1
+            //     } else {
+            //         self.current_index - 1
+            //     }
+            // },
+            _ => self.current_index - 1
         }
     }
 
     fn timing_offside(&self, size: usize, prev_area: Position) -> usize {
-        let row_diff = self.rows_from(prev_area.prev_index);
+        // return self.current_index
+        // let row_diff = self.rows_from(prev_area.prev_index);
         match self.off {
             RIGHT => self.current_index - 1,
             BOTTOM => {
@@ -135,36 +137,34 @@ impl Position {
         // }
     }
 
-    fn columns_from(&self, index: usize) -> isize {
-        (self.current_index % self.size) as isize - (index % self.size) as isize
+    fn rows_from(&self, index: usize) -> isize {
+        (self.current_index / self.size) as isize - (index / self.size) as isize
     }
 
 
     // Positive value denotes a "downward" trajectory, negative "upwards"
-    fn rows_from(&self, index: usize) -> isize {
+    fn columns_from(&self, index: usize) -> isize {
         (self.current_index / self.size) as isize - (index / self.size) as isize
     }
 
     fn near_timing(&self, prev_area: Position) -> usize {
         let row_diff = self.rows_from(prev_area.prev_index);
         let col_diff = self.columns_from(prev_area.prev_index);
-        // println!("row diff: {}, col diff: {}", row_diff, col_diff);
+        let size = self.size;
+        let diff = self.current_index / size - prev_area.prev_index / size;
+        panic!("fuck {}, {}", self.current_index, prev_area.current_index);
+        match self.timing {
+            TOP if self.current_index == prev_area.current_index => {
+                panic!("well fuck everything {:?}, {:?}", self, prev_area);
+                self.current_index - (size * 2) + 1
+            },
+            TOP if prev_area.prev_index == self.current_index - self.size * 2 => {
+                self.current_index + size + 1
+            },// guard against coming from above
 
-        if col_diff > 1 || col_diff < -1 {
-            self.current_index - 1 // for now
-        } else {
-            match row_diff {
-                -2 | 2 => self.current_index - 1,
-                -1 | 1 => self.current_index - 1,
-                0 => {
-                    if self.timing == BOTTOM {
-                        self.current_index + (self.size * 2) + 1
-                    } else {
-                        self.current_index - (self.size * 2) + 1
-                    }
-                },
-                _    => panic!("Ruh Roh current")
-            }
+            BOTTOM if prev_area.prev_index == self.current_index + self.size * 2 => self.current_index - size + 1,
+            BOTTOM if self.current_index - 1 == prev_area.current_index => self.current_index + size + 1,
+            _ => self.current_index - 1
         }
     }
 
@@ -248,12 +248,12 @@ impl Position {
         println!("Current   {}", self.current_index);
     }
 
-    pub fn row(&self) -> bool {
-        self.current_index + 1 == self.prev_index
+    pub fn row(&self) -> usize {
+        self.current_index / self.size
     }
 
-    pub fn column(&self, size: usize) -> usize {
-        self.current_index % size
+    pub fn column(&self) -> usize {
+        self.current_index % self.size
     }
 
     fn timing_alignment(&self, size: usize, prev_area: Position) -> usize {
@@ -310,7 +310,7 @@ impl Position {
     }
 
     pub fn adjust_position(mut self, size: usize, prev_area: Position) -> Position {
-        // self.print_binary(size, prev_area);
+        self.print_binary(size, prev_area);
         let former_index = self.current_index;
 
         self.current_index = if self.timing > 0 && self.algn > 0 {
@@ -332,6 +332,9 @@ impl Position {
         };
 
         self.prev_index = former_index;
+        if self.current_index == prev_area.current_index {
+            panic!("fuck {}, {}", self.current_index, prev_area.current_index);
+        }
 
         self
     }
