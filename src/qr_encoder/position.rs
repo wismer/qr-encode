@@ -24,6 +24,7 @@ const LL_CORNER: u8 = LEFT | LOWER_RIGHT;
 const UL_CORNER: u8 = LEFT | UPPER_RIGHT;
 const ALL_CORNER: u8 = TOP | BOTTOM;
 
+
 #[derive(Debug)]
 enum Direction {
     Left,
@@ -35,18 +36,6 @@ enum Direction {
     DownRight,
     JumpLeft,
     AlignmentTimingBlock
-}
-
-enum DirectionEvent {
-    SkipColumn,
-    SkipRow,
-    SkipAlignment,
-    Ceiling,
-    Floor,
-    ZagUp,
-    ZagDown,
-    Up,
-    Down
 }
 
 impl Position {
@@ -148,23 +137,20 @@ impl Position {
     }
 
     fn near_timing(&self, prev_area: Position) -> usize {
-        let row_diff = self.rows_from(prev_area.prev_index);
-        let col_diff = self.columns_from(prev_area.prev_index);
         let size = self.size;
-        let diff = self.current_index / size - prev_area.prev_index / size;
-        panic!("fuck {}, {}", self.current_index, prev_area.current_index);
+
         match self.timing {
             TOP if self.current_index == prev_area.current_index => {
-                panic!("well fuck everything {:?}, {:?}", self, prev_area);
                 self.current_index - (size * 2) + 1
             },
             TOP if prev_area.prev_index == self.current_index - self.size * 2 => {
                 self.current_index + size + 1
             },// guard against coming from above
-
-            BOTTOM if prev_area.prev_index == self.current_index + self.size * 2 => self.current_index - size + 1,
+            TOP => self.current_index - 1,
+            BOTTOM if prev_area.prev_index == self.current_index + (self.size * 2) - 1 => self.current_index - size + 1,
             BOTTOM if self.current_index - 1 == prev_area.current_index => self.current_index + size + 1,
-            _ => self.current_index - 1
+            BOTTOM => self.current_index - size + 1,
+            _ => self.current_index
         }
     }
 
@@ -313,6 +299,7 @@ impl Position {
         self.print_binary(size, prev_area);
         let former_index = self.current_index;
 
+
         self.current_index = if self.timing > 0 && self.algn > 0 {
             self.timing_alignment(size, prev_area)
         } else if self.timing > 0 && self.off > 0 {
@@ -332,9 +319,6 @@ impl Position {
         };
 
         self.prev_index = former_index;
-        if self.current_index == prev_area.current_index {
-            panic!("fuck {}, {}", self.current_index, prev_area.current_index);
-        }
 
         self
     }
