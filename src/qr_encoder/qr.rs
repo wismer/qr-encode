@@ -11,8 +11,7 @@ use qr_encoder::util::{set_color};
 
 pub struct QR {
     pub body: Vec<Cell>,
-    pub current_position: Position,
-    pub previous_position: Position
+    pub history: [Position; 3]
 }
 
 
@@ -32,7 +31,6 @@ impl QR {
     }
 
     pub fn encode_chunk(&mut self, chunk: &u8, chunk_length: usize, config: &QRConfig) {
-        let row_length = config.size - 1;
         let corners: [(isize, isize); 4] = [
             (-1, 1),
             (1, 1),
@@ -49,7 +47,7 @@ impl QR {
                 msg: 0,
                 size: config.size,
                 current_index: self.current_position.current_index,
-                prev_index: self.current_position.prev_index
+                prev_index: self.previous_position.current_index
             };
 
             let current_point: Point = Point::as_point(position.current_index, config.size);
@@ -141,8 +139,18 @@ impl QR {
             }
 
             // after each corner gets examined, copy the current position context and save it to the previous position context
+            // overwrite the previous position to the current one (which is really just one step behind)
+            // three points:
+            // 1: where the cursor was BEFORE the state changes
+            let previous_position_index = self.previous_position.current_index;
             self.previous_position = self.current_position;
+            self.previous_position.prev_index = previous_position_index;
+            // then set the current position with the proper context
             self.current_position = position.adjust_position(config.size, self.previous_position);
+            if self.current_position.timing > 0 {
+                println!("{}", (self.current_position.current_index as isize) - (self.previous_position.prev_index as isize));
+                println!("curr {}, prev {}, prev prev: {}", self.current_position.current_index, self.current_position.prev_index, self.previous_position.prev_index);
+            }
         }
     }
 
