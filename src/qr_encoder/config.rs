@@ -100,6 +100,7 @@ impl QRConfig {
 
     pub fn encode_error_correction_codewords(&mut self) {
         let ecc_len = self.codeword_properties.ecc_codeword_count;
+        println!("ECC LEN: {}", ecc_len);
         let encoder = Encoder::new(ecc_len);
         let (group_one_total_data, group_two_total_data) = self.codeword_properties.get_data_cw_total_for_groups();
         let (group_one_blocks, group_two_blocks) = self.codeword_properties.get_block_count_for_groups();
@@ -112,20 +113,22 @@ impl QRConfig {
 
         {
             let (first, second) = data_codewords.split_at(group_one_total_data * group_one_blocks);
-
+            println!("group one: {}, group_two: {}", group_one_total_data, group_two_total_data);
             for chunk in first.chunks(group_one_total_data) {
                 let buffer = encoder.encode(chunk);
                 data.push(buffer);
             }
-
+            println!("{:?}", second.len());
             for chunk in second.chunks(group_two_total_data) {
                 let buffer = encoder.encode(chunk);
                 data.push(buffer);
             }
+            println!("GETTING {}", "BLAG");
 
             let ecc_per_block = ecc_len / self.codeword_properties.block_count;
 
             for i in 0..ecc_per_block {
+                println!("GETTING {}", i);
                 for block in data.clone() {
                     if let Some(cw) = block.data_get(i) {
                         data_section.push(cw);

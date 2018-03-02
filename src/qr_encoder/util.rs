@@ -165,6 +165,19 @@ pub fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
     pixels
 }
 
+pub fn get_index_value(index: isize, modifiers: (isize, isize), canvas_size: isize) -> Option<usize> {
+    let x = index / canvas_size;
+    let y = index % canvas_size;
+    let cx = x + modifiers.0;
+    let cy = y + modifiers.1;
+
+    if (cx > -1 && cx < canvas_size) && (cy > -1 && cy < canvas_size) {
+        Some((cx * canvas_size + cy) as usize)
+    } else {
+        None
+    }
+}
+
 pub fn square_count(version: usize) -> usize {
     (((version - 1) * 4) + 21)
 }

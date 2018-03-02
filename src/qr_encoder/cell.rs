@@ -46,6 +46,18 @@ impl Point {
     pub fn idx(&self, size: usize) -> usize {
         (self.0 * size) + self.1
     }
+
+    pub fn move_to(&self, rhs: (isize, isize)) -> Point {
+        let (rx, ry) = rhs;
+        let x = (self.0 as isize) + rx;
+        let y = (self.1 as isize) + ry;
+
+        if x < 0 || y < 0 {
+            Point(0, 0)
+        } else {
+            Point(x as usize, y as usize)
+        }
+    }
 }
 
 impl Shr<(isize, isize)> for Point {
