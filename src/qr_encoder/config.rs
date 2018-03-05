@@ -106,29 +106,29 @@ impl QRConfig {
         let (group_one_blocks, group_two_blocks) = self.codeword_properties.get_block_count_for_groups();
         let data_codeword_block_length = self.codeword_properties.capacity - ecc_len;
         let data_codewords = &mut self.codewords;
-
+        // panic!("data_codeword_block_length: {}\n, group_one_blocks: {}\n, group_two_blocks: {}\n, group_one_total_data: {}\n, group_two_total_data: {}\n", data_codeword_block_length, group_one_blocks, group_two_blocks, group_one_total_data, group_two_total_data);
         let mut data: Vec<Buffer> = vec![];
         let mut data_section: Vec<u8> = vec![];
         let mut ecc_section: Vec<u8> = vec![];
+        println!("{:?}", self.codeword_properties);
 
         {
+            println!("DATA CODEWORDS TOTAL: {}\n", data_codewords.len());
             let (first, second) = data_codewords.split_at(group_one_total_data * group_one_blocks);
-            println!("group one: {}, group_two: {}", group_one_total_data, group_two_total_data);
+            println!("group one: {}, group_two: {}, \nsecond: {}\nfirst: {}\n", group_one_total_data, group_two_total_data, first.len(), second.len());
             for chunk in first.chunks(group_one_total_data) {
                 let buffer = encoder.encode(chunk);
                 data.push(buffer);
             }
-            println!("{:?}", second.len());
+
             for chunk in second.chunks(group_two_total_data) {
                 let buffer = encoder.encode(chunk);
                 data.push(buffer);
             }
-            println!("GETTING {}", "BLAG");
 
             let ecc_per_block = ecc_len / self.codeword_properties.block_count;
 
             for i in 0..ecc_per_block {
-                println!("GETTING {}", i);
                 for block in data.clone() {
                     if let Some(cw) = block.data_get(i) {
                         data_section.push(cw);
@@ -144,25 +144,35 @@ impl QRConfig {
         }
 
         println!("PROPERTIES: {:?}", self.codeword_properties);
-        println!("CONTENT LENGTH: {}", data_codewords.len());
+        println!("CONTENT LENGTH: {}", data_section.len());
 
         *data_codewords = data_section;
     }
 
-    pub fn translate_data(&mut self) {
-        let mut data_length = self.data.len();
-        let mut content_length = self.get_content_length();
-        let mut encoding = self.encoding;
-        let copied_data = self.data.clone();
 
+    pub fn translate_data(&mut self) {
+        let data_length = self.data.len() as u16;
+        let content_length = self.get_content_length() as u16;
+        let encoding = self.encoding;
+        let copied_data = self.data.clone();
+        println!("before translate {}", self.codewords.len());
+        // 1. shift all bytes left
+
+        let mut bit_count = 0;
         {
-            let mut codewords = &mut self.codewords;
-            let mut current_byte = (encoding << 4) ^ data_length.rotate_right(4) as u8;
+            let codewords = &mut self.codewords;
+            let mut receiving_byte = encoding << 4;
+            receiving_byte ^= (content_length as u8) << 4;
+            let mut intermediary_byte = 0;
+
+
+            let current_byte = (encoding << 4) ^ data_length.rotate_right(4) as u8;
 
             codewords.push(current_byte);
-            codewords.push(data_length.rotate_left(4) as u8);
-
+            codewords.push((current_byte << 4) ^ data_length.rotate_left(4) as u8);
+            bit_count += 8;
             for byte in copied_data.iter() {
+                bit_count += 8;
                 {
                     let prev = codewords.last_mut().unwrap();
                     *prev ^= byte.wrapping_shr(4);
@@ -170,12 +180,22 @@ impl QRConfig {
 
                 codewords.push(byte.wrapping_shl(4));
             }
-        }
+            for byte in codewords {
+                println!("{:b}", byte);
+            }
 
+        }
         let mut swap = false;
 
         // pad the end of the message codewords, alternating between 17 and 236, until it fills the allotted amount for the version
+
+
         let data_cw_length = self.codeword_properties.get_data_codeword_length();
+        let bits_required = data_cw_length * 8;
+
+
+
+        panic!("bla");
         while self.codewords.len() < data_cw_length {
             if swap {
                 self.codewords.push(17u8);
@@ -185,6 +205,8 @@ impl QRConfig {
 
             swap = !swap;
         }
+
+        println!("after translate {}", self.codewords.len());
     }
 
     pub fn create_body(&self) -> Vec<Cell> {

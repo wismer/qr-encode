@@ -328,11 +328,15 @@ pub fn args() -> QRConfig {
         arg = qr_args.next();
     }
 
+    let mut data = data.unwrap();
+    let codeword_properties = codeword_info(version, &ec_level);
+    data.truncate(codeword_properties.capacity - codeword_properties.ecc_codeword_count);
+
     QRConfig {
         version: version,
-        data: data.unwrap(),
+        data: data,
         codewords: vec![],
-        codeword_properties: codeword_info(version, &ec_level),
+        codeword_properties: codeword_properties,
         encoding: 4u8,
         encoding_mode: EncodingMode::Byte,
         debug_mode: debug_mode,

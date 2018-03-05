@@ -61,7 +61,7 @@ fn main() {
         },
     };
 
-    config.verify_version();
+    config.verify_version(); // TODO
     config.translate_data();
 
     {

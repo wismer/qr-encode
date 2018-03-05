@@ -58,8 +58,17 @@ impl QR {
 
             match self.body.get_mut(current_index) {
                 Some(cell) => {
-                    cell.module_type = CellType::Message;
-                    cell.color = color;
+                    match cell.module_type {
+                        CellType::None => {
+                            cell.module_type = CellType::Message;
+                            cell.color = color;
+                        },
+                        _ => {
+                            if config.debug_mode {
+                                panic!("NO");
+                            }
+                        }
+                    }
                 },
                 None => {
                     panic!("this should never happen {:?}", current_index);
