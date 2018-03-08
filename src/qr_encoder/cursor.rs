@@ -159,8 +159,14 @@ impl Cursor {
         match algn {
             TOP if timing & LEFT > 0 => -(canvas_size * 6) + 1,
             BOTTOM if timing & LEFT > 0 => (canvas_size * 6) + 1,
+
             RIGHT if timing & BOTTOM > 0 && free == (W | NW) => canvas_size * 2,
+            RIGHT if timing & TOP > 0 && free == (W | SW) => -canvas_size * 2,
+            RIGHT if timing & TOP > 0 && free == (W | NW) => -canvas_size * 2,
+            RIGHT if timing & BOTTOM > 0 && free == 0 => (canvas_size * 2) + 1,
+            RIGHT if timing & BOTTOM > 0 && prev_index == (idx + (canvas_size * 2)) => -canvas_size,
             LEFT if timing & TOP > 0 && free == 0 => -(canvas_size * 2) + 1,
+            LEFT if timing & BOTTOM > 0 && free == 0 => (canvas_size * 2) + 1,
             _ => -1
         }
     }
@@ -169,16 +175,24 @@ impl Cursor {
         let algn = self.context.algn;
         let msg = self.context.msg;
         let free = self.context.free;
+        let prev_index = self.drawn_path[1] as isize;
+
 
         match algn {
+            NE if prev_index == idx + canvas_size - 1 => -1,
+            ENE if msg & SW == SW => -1,
             NE | SW => -canvas_size,
+            ESE if prev_index == idx + canvas_size - 1 => -1,
+            SE if prev_index == idx + canvas_size - 1 => -1,
             ESE | SE | NW => canvas_size,
             ENE => -canvas_size,
             WNW => -canvas_size,
+            SSE if free == LEFT => (canvas_size * 6) + 1,
             NNW if msg & SW == SW => -1,
             TOP if free == W => -1,
             TOP if msg & S == S => -(canvas_size * 6) + 1,
             BOTTOM if msg == (N | NE | E) => (canvas_size * 6) + 1,
+            RIGHT if prev_index == idx + canvas_size - 1 => -1,
             NNE | RIGHT | LEFT if free & N == N => -canvas_size,
             RIGHT | LEFT => canvas_size,
             _ => -1

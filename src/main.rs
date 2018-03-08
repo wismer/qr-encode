@@ -7,7 +7,7 @@ use qr_encoder::qr::QR;
 use qr_encoder::config::{QRConfig};
 use qr_encoder::util::{codeword_info, get_pixel_points, square_count, args, CodeWord};
 use qr_encoder::position::Position;
-use qr_encoder::cell::{Point};
+use qr_encoder::cell::{Point, Color, CellType};
 use qr_encoder::cursor::{Cursor, QRContext};
 
 use std::fs::File;
@@ -20,10 +20,10 @@ use self::image_lib::{
 use self::reed_solomon::Encoder;
 
 
-fn create_qr_image(qr: QR, config: &QRConfig) {
+fn create_qr_image(qr: &QR, config: &QRConfig) {
     let dimensions: u32 = (config.size) as u32;
     let mut img = ImageBuffer::new(dimensions * 20, dimensions * 20);
-    for cell in qr.body {
+    for cell in &qr.body {
         for pixel in get_pixel_points(&cell) {
             let (x, y, color) = pixel;
             if x % 20 == 0 || y % 20 == 0 {
@@ -44,7 +44,7 @@ fn create_qr_image(qr: QR, config: &QRConfig) {
 
 fn main() {
     let mut config: QRConfig = args();
-    let mut drawn_path: Vec<usize> = vec![8; 0];
+    let drawn_path: Vec<usize> = vec![8; 0];
 
     let mut qr: QR = QR {
         body: config.create_body(),
@@ -65,12 +65,11 @@ fn main() {
     config.translate_data();
 
     {
-        let mut c = &mut config;
+        let c = &mut config;
         c.encode_error_correction_codewords();
     }
 
     qr.setup(&config);
-    println!("{:?}", config.codewords);
 
     {
         let data = &config.codewords[..];
@@ -79,5 +78,19 @@ fn main() {
         }
     }
 
-    create_qr_image(qr, &config);
+    config.penalty_score_eval_one(&qr.body);
+    config.penalty_score_eval_two(&qr.body);
+    config.penalty_score_eval_three(&qr.body);
+
+    {
+        let qrbody = &mut qr.body;
+        for cell in qrbody {
+            match cell.module_type {
+                CellType::Message => cell.apply_mask(config.mask),
+                _ => {}
+            }
+        }
+    }
+
+    create_qr_image(&qr, &config);
 }

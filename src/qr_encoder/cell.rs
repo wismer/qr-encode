@@ -35,6 +35,23 @@ pub struct Cell {
     pub color: Color
 }
 
+impl Cell {
+    pub fn apply_mask(&mut self, mask: usize) {
+        let Point(row, col) = self.point;
+
+        if (row + col) % 2 == 0 {
+            match self.value {
+                1 => self.color = Color { r: 255, g: 255, b: 255 }, // change to black
+                _ => self.color = Color { r: 0, g: 0, b: 0 }
+            }
+        }
+    }
+
+    pub fn is_black(&self) -> bool {
+        self.color.r == 0 && self.color.g == 0 && self.color.b == 0
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Point(pub usize, pub usize);
 

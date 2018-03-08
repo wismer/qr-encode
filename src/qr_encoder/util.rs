@@ -337,6 +337,7 @@ pub fn args() -> QRConfig {
         data: data,
         codewords: vec![],
         codeword_properties: codeword_properties,
+        mask: 1,
         encoding: 4u8,
         encoding_mode: EncodingMode::Byte,
         debug_mode: debug_mode,

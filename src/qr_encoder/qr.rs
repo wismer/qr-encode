@@ -30,6 +30,15 @@ impl QR {
         }
     }
 
+    pub fn apply_mask(&mut self, config: &QRConfig) {
+        // self.body.into_iter().filter(|c| {
+        //     match c.module_type {
+        //         CellType::Message => true,
+        //         _ => false
+        //     }
+        // });
+    }
+
     pub fn encode_chunk(&mut self, chunk: &u8, chunk_length: usize, config: &QRConfig) {
         let mut cursor = &mut self.cursor;
         let corners: [(isize, isize); 8] = [
@@ -46,13 +55,6 @@ impl QR {
         for i in 0..chunk_length {
             let current_index = cursor.current_index;
             let bit = chunk & (1 << (chunk_length - i) - 1);
-            let color: Color = if config.debug_mode {
-                set_color(i)
-            } else if bit == 0 {
-                Color { r: 255, g: 255, b: 255 }
-            } else {
-                Color { r: 0, g: 0, b: 0 }
-            };
 
             let mut corner_idx = 0;
 
@@ -60,6 +62,16 @@ impl QR {
                 Some(cell) => {
                     match cell.module_type {
                         CellType::None => {
+                            let color: Color = if config.debug_mode {
+                                set_color(i)
+                            } else if bit == 0 {
+                                cell.value = bit;
+                                Color { r: 255, g: 255, b: 255 }
+                            } else {
+                                cell.value = 1;
+                                Color { r: 0, g: 0, b: 0 }
+                            };
+
                             cell.module_type = CellType::Message;
                             cell.color = color;
                         },

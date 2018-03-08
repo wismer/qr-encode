@@ -1,5 +1,5 @@
 extern crate reed_solomon;
-
+use std::ops::Range;
 use self::reed_solomon::{Encoder, Buffer};
 
 use qr_encoder::cell::{
@@ -31,6 +31,7 @@ pub struct QRConfig {
     pub data: Vec<u8>,
     pub codewords: Vec<u8>,
     pub codeword_properties: CodeWord,
+    pub mask: usize,
     pub encoding: u8, // for now - should be its own sub-type.
     pub encoding_mode: EncodingMode,
     pub debug_mode: bool,
@@ -40,13 +41,38 @@ pub struct QRConfig {
     pub err_correction_level: ECLevel
 }
 
+fn arrange_group(blocks: &Vec<Buffer>, range: Range<usize>, ecc_blocks: usize) -> Vec<u8> {
+    let mut data_section: Vec<u8> = vec![];
+
+    for i in range {
+        for block in blocks {
+            if let Some(cw) = block.get_data_cw(i) {
+                data_section.push(cw);
+            }
+        }
+    }
+    let mut n = 0;
+    for i in 0..ecc_blocks {
+        for block in blocks {
+            if let Some(cw) = block.get_ecc(i) {
+                n += 1;
+                data_section.push(cw);
+            }
+        }
+    }
+
+    println!("This is how many times error corrections were made {} from buffer length of {}", n, blocks.len());
+
+    data_section
+}
+
 trait BufferState {
-    fn data_get(&self, idx: usize) -> Option<u8>;
-    fn err_get(&self, idx: usize) -> Option<u8>;
+    fn get_data_cw(&self, idx: usize) -> Option<u8>;
+    fn get_ecc(&self, idx: usize) -> Option<u8>;
 }
 
 impl BufferState for Buffer {
-    fn data_get(&self, idx: usize) -> Option<u8> {
+    fn get_data_cw(&self, idx: usize) -> Option<u8> {
         if let Some(cw) = self.data().get(idx) {
             Some(*cw)
         } else {
@@ -54,7 +80,7 @@ impl BufferState for Buffer {
         }
     }
 
-    fn err_get(&self, idx: usize) -> Option<u8> {
+    fn get_ecc(&self, idx: usize) -> Option<u8> {
         if let Some(cw) = self.ecc().get(idx) {
             Some(*cw)
         } else {
@@ -69,6 +95,156 @@ impl QRConfig {
     pub fn get_ecc_length(&self) -> usize {
         self.codeword_properties.ecc_codeword_count
     }
+
+    pub fn determine_best_mask(&self) {
+
+    }
+
+    pub fn penalty_score_eval_two(&self, body: &Vec<Cell>) -> usize {
+        let mut idx = 0;
+        let mut penalty_total = 0;
+        let canvas_size = self.size;
+
+        let adjacent_coords = [
+            canvas_size,
+            canvas_size + 1,
+            1
+        ];
+
+        loop {
+            let cell = match body.get(idx) {
+                Some(c) => c,
+                None => panic!("should this happen? {}, score: {}", idx, penalty_total)
+            };
+
+            if cell.point.1 == canvas_size - 1 {
+                idx += 1;
+                continue;
+            } else if cell.point.0 == canvas_size - 1 {
+                break;
+            }
+
+            let look_for_black = cell.is_black();
+            let square = adjacent_coords.into_iter()
+                .map(|&i| body[i + idx].is_black())
+                .all(|p| p == look_for_black);
+
+            if square {
+                penalty_total += 3;
+            }
+
+            idx += 1;
+        }
+
+        penalty_total
+    }
+
+    pub fn penalty_score_eval_three(&self, body: &Vec<Cell>) -> usize {
+        let first_pattern = [true, false, true, true, true, false, true, false, false, false];
+        let second_pattern = [false, false, false, false, true, false, true, true, true, false, true];
+        let mut penalty_total = 0;
+        let mut row = 0;
+        let mut col = 0;
+        let canvas_size = self.size;
+        let mut row_offset = canvas_size - 10;
+        let length = 10;
+        let mut idx = 0;
+
+        loop {
+            // first check ahead
+            if (idx + 10) >= body.len() {
+                break;
+            } else if (idx + 10) % canvas_size == 0 {
+                // means an iteration would overlap the rows, so advance to the beginning of the next row
+                idx += 10;
+                // println!("starting row {}", idx / canvas_size);
+                continue;
+            }
+
+            let mut pred_index = 0;
+            let mut pattern_matches = true;
+
+            while pattern_matches && pred_index < 10 {
+                let pred = first_pattern[pred_index];
+                let cell = &body[idx];
+                println!("{:?}", cell);
+
+                pattern_matches = cell.is_black() == pred;
+                pred_index += 1;
+                idx += 1;
+            }
+        }
+
+        penalty_total
+    }
+
+    pub fn penalty_score_eval_one(&self, body: &Vec<Cell>) -> usize {
+        let canvas_size = self.size;
+        let mut current_row = 0;
+        let mut consecutive_same_color = 1;
+        let mut tracking_black = false;
+        let mut penalty_total = 0;
+
+        for cell in body {
+            if cell.point.0 != current_row {
+                // new row, so reset again
+                if consecutive_same_color >= 5 {
+                    penalty_total += consecutive_same_color - 2;
+                }
+                println!("ROW {}: {}", current_row, penalty_total);
+                consecutive_same_color = 1;
+                tracking_black = cell.is_black();
+                current_row = cell.point.0;
+                continue;
+            }
+            let is_black = cell.is_black();
+
+            if (tracking_black && is_black) || (!tracking_black && !is_black) {
+                consecutive_same_color += 1;
+            } else if (tracking_black && !is_black) || (!tracking_black && is_black) {
+                // tally up and reset
+                if consecutive_same_color >= 5 {
+                    penalty_total += consecutive_same_color - 2;
+                }
+
+                consecutive_same_color = 1;
+                tracking_black = is_black;
+            }
+        }
+
+        let cell_count = body.len();
+        let mut idx = 0;
+
+        while idx < cell_count {
+            let cell = &body[idx];
+            let is_black = cell.is_black();
+
+            if (tracking_black && is_black) || (!tracking_black && !is_black) {
+                consecutive_same_color += 1;
+            } else if (tracking_black && !is_black) || (!tracking_black && is_black) {
+                // tally up and reset
+                if consecutive_same_color >= 5 {
+                    penalty_total += consecutive_same_color - 2;
+                }
+
+                consecutive_same_color = 1;
+                tracking_black = is_black;
+            }
+
+            if cell.point.1 == (canvas_size - 1) && cell.point.0 == (canvas_size - 1) {
+                break;
+            } else if cell.point.0 == canvas_size - 1 {
+                idx = cell.point.1 + 1;
+                consecutive_same_color = 1;
+            } else {
+                idx += canvas_size;
+            }
+        }
+
+        penalty_total
+    }
+
+
 
     pub fn verify_version(&mut self) {
         // TODO!
@@ -100,47 +276,34 @@ impl QRConfig {
 
     pub fn encode_error_correction_codewords(&mut self) {
         let ecc_len = self.codeword_properties.ecc_codeword_count;
-        println!("ECC LEN: {}", ecc_len);
         let encoder = Encoder::new(ecc_len);
         let (group_one_total_data, group_two_total_data) = self.codeword_properties.get_data_cw_total_for_groups();
         let (group_one_blocks, group_two_blocks) = self.codeword_properties.get_block_count_for_groups();
-        let data_codeword_block_length = self.codeword_properties.capacity - ecc_len;
         let data_codewords = &mut self.codewords;
-        // panic!("data_codeword_block_length: {}\n, group_one_blocks: {}\n, group_two_blocks: {}\n, group_one_total_data: {}\n, group_two_total_data: {}\n", data_codeword_block_length, group_one_blocks, group_two_blocks, group_one_total_data, group_two_total_data);
-        let mut data: Vec<Buffer> = vec![];
+
+        let mut group_one_data: Vec<Buffer> = vec![];
+        let mut group_two_data: Vec<Buffer> = vec![];
         let mut data_section: Vec<u8> = vec![];
-        let mut ecc_section: Vec<u8> = vec![];
-        println!("{:?}", self.codeword_properties);
 
         {
-            println!("DATA CODEWORDS TOTAL: {}\n", data_codewords.len());
             let (first, second) = data_codewords.split_at(group_one_total_data * group_one_blocks);
-            println!("group one: {}, group_two: {}, \nsecond: {}\nfirst: {}\n", group_one_total_data, group_two_total_data, first.len(), second.len());
-            for chunk in first.chunks(group_one_total_data) {
-                let buffer = encoder.encode(chunk);
-                data.push(buffer);
-            }
-
-            for chunk in second.chunks(group_two_total_data) {
-                let buffer = encoder.encode(chunk);
-                data.push(buffer);
+            for block in first.chunks(group_one_total_data) {
+                let buffer = encoder.encode(block);
+                group_one_data.push(buffer);
             }
 
             let ecc_per_block = ecc_len / self.codeword_properties.block_count;
+            let mut first_group = arrange_group(&group_one_data, 0..group_one_total_data, ecc_per_block);
+            data_section.append(&mut first_group);
 
-            for i in 0..ecc_per_block {
-                for block in data.clone() {
-                    if let Some(cw) = block.data_get(i) {
-                        data_section.push(cw);
-                    }
-
-                    if let Some(cw) = block.err_get(i) {
-                        ecc_section.push(cw);
-                    }
+            if group_two_total_data > 0 {
+                for block in second.chunks(group_two_total_data) {
+                    let buffer = encoder.encode(block);
+                    group_two_data.push(buffer);
                 }
+                let mut second_group = arrange_group(&group_two_data, 0..group_two_total_data, ecc_per_block);
+                data_section.append(&mut second_group);
             }
-
-            data_section.append(&mut ecc_section);
         }
 
         println!("PROPERTIES: {:?}", self.codeword_properties);
@@ -151,52 +314,40 @@ impl QRConfig {
 
 
     pub fn translate_data(&mut self) {
-        let data_length = self.data.len() as u16;
-        let content_length = self.get_content_length() as u16;
+        let data_cw_length = self.codeword_properties.get_data_codeword_length();
+        let data_length = self.data.len() as u8;
+        // let content_length = self.get_content_length() as u16;
         let encoding = self.encoding;
         let copied_data = self.data.clone();
-        println!("before translate {}", self.codewords.len());
-        // 1. shift all bytes left
+        println!("data_cw_length: {} data_length: {}", data_cw_length, data_length);
 
-        let mut bit_count = 0;
         {
             let codewords = &mut self.codewords;
-            let mut receiving_byte = encoding << 4;
-            receiving_byte ^= (content_length as u8) << 4;
-            let mut intermediary_byte = 0;
+            let mut first_byte = encoding << 4;
+            let mut second_byte = data_cw_length as u8;
+            let mut index = 0;
+            loop {
+                println!("WHAT THE FUCK {} vs {}", index, data_cw_length);
+                codewords.push(first_byte | (second_byte >> 4));
+                first_byte = second_byte << 4;
 
-
-            let current_byte = (encoding << 4) ^ data_length.rotate_right(4) as u8;
-
-            codewords.push(current_byte);
-            codewords.push((current_byte << 4) ^ data_length.rotate_left(4) as u8);
-            bit_count += 8;
-            for byte in copied_data.iter() {
-                bit_count += 8;
-                {
-                    let prev = codewords.last_mut().unwrap();
-                    *prev ^= byte.wrapping_shr(4);
+                if let Some(byte) = copied_data.get(index) {
+                    second_byte = *byte;
+                    index += 1;
+                } else {
+                    codewords.push(second_byte << 4);
+                    break;
                 }
-
-                codewords.push(byte.wrapping_shl(4));
             }
-            for byte in codewords {
-                println!("{:b}", byte);
-            }
-
         }
-        let mut swap = false;
 
         // pad the end of the message codewords, alternating between 17 and 236, until it fills the allotted amount for the version
 
 
-        let data_cw_length = self.codeword_properties.get_data_codeword_length();
-        let bits_required = data_cw_length * 8;
-
-
-
-        panic!("bla");
+        let mut swap = false;
+        let mut n = 0;
         while self.codewords.len() < data_cw_length {
+            n += 1;
             if swap {
                 self.codewords.push(17u8);
             } else {
@@ -205,6 +356,8 @@ impl QRConfig {
 
             swap = !swap;
         }
+
+        println!("THIS IS HOW MANY PADDED BYTES ARE ADDED BEFORE INTERLEAVING {}", n);
 
         println!("after translate {}", self.codewords.len());
     }
