@@ -77,10 +77,15 @@ fn main() {
             qr.encode_chunk(&byte, 8, &config);
         }
     }
-
-    config.penalty_score_eval_one(&qr.body);
-    config.penalty_score_eval_two(&qr.body);
-    config.penalty_score_eval_three(&qr.body);
+    let mut penalty_total = 0;
+    let first = config.penalty_score_eval_one(&qr.body);
+    println!("1: {:?}", first);
+    let second = config.penalty_score_eval_two(&qr.body);
+    println!("2: {:?}", second);
+    let third = config.penalty_score_eval_three(&qr.body);
+    println!("3: {:?}", third);
+    let fourth = config.penalty_score_eval_four(&qr.body);
+    println!("4: {:?}", fourth);
 
     {
         let qrbody = &mut qr.body;

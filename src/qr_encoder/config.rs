@@ -96,10 +96,6 @@ impl QRConfig {
         self.codeword_properties.ecc_codeword_count
     }
 
-    pub fn determine_best_mask(&self) {
-
-    }
-
     pub fn penalty_score_eval_two(&self, body: &Vec<Cell>) -> usize {
         let mut idx = 0;
         let mut penalty_total = 0;
@@ -139,43 +135,110 @@ impl QRConfig {
         penalty_total
     }
 
-    pub fn penalty_score_eval_three(&self, body: &Vec<Cell>) -> usize {
+    fn check_columns(&self, body: &Vec<Cell>) -> usize {
         let first_pattern = [true, false, true, true, true, false, true, false, false, false];
         let second_pattern = [false, false, false, false, true, false, true, true, true, false, true];
+        let canvas_size = self.size;
         let mut penalty_total = 0;
         let mut row = 0;
-        let mut col = 0;
-        let canvas_size = self.size;
-        let mut row_offset = canvas_size - 10;
-        let length = 10;
-        let mut idx = 0;
+        let depth = 10;
 
-        loop {
-            // first check ahead
-            if (idx + 10) >= body.len() {
-                break;
-            } else if (idx + 10) % canvas_size == 0 {
-                // means an iteration would overlap the rows, so advance to the beginning of the next row
-                idx += 10;
-                // println!("starting row {}", idx / canvas_size);
-                continue;
+        for i in 0..canvas_size {
+            while row + depth < canvas_size {
+                let mut start_point = Point(row, i);
+                let destination_point = Point(row + depth, i);
+                let mut indices = start_point.to(destination_point, canvas_size as isize);
+
+                let first_pattern_matches = indices.iter()
+                    .enumerate()
+                    .all(|(idx, value)| {
+                        let cell = &body[*value as usize];
+                        let pred = first_pattern[idx];
+
+                        cell.is_black() == pred
+                    });
+
+                indices.reverse();
+
+                let second_pattern_matches = indices.iter()
+                    .enumerate()
+                    .all(|(idx, value)| {
+                        let cell = &body[*value as usize];
+                        let pred = second_pattern[idx];
+
+                        cell.is_black() == pred
+                    });
+
+                if first_pattern_matches {
+                    penalty_total += 40;
+                }
+
+                if second_pattern_matches {
+                    penalty_total += 40;
+                }
+
+                row += 1;
             }
 
-            let mut pred_index = 0;
-            let mut pattern_matches = true;
-
-            while pattern_matches && pred_index < 10 {
-                let pred = first_pattern[pred_index];
-                let cell = &body[idx];
-                println!("{:?}", cell);
-
-                pattern_matches = cell.is_black() == pred;
-                pred_index += 1;
-                idx += 1;
-            }
+            row = 0;
         }
 
         penalty_total
+    }
+
+    fn check_rows(&self, body: &Vec<Cell>) -> usize {
+        let first_pattern = [true, false, true, true, true, false, true, false, false, false];
+        let second_pattern = [false, false, false, false, true, false, true, true, true, false, true];
+        let canvas_size = self.size;
+        let mut penalty_total = 0;
+        let mut col = 0;
+        let depth = 10;
+
+        for i in 0..canvas_size {
+            while col + depth < canvas_size {
+                let mut start_point = Point(i, col);
+                let destination_point = Point(i, col + depth);
+                let mut indices = start_point.to(destination_point, canvas_size as isize);
+
+                let first_pattern_matches = indices.iter()
+                    .enumerate()
+                    .all(|(idx, value)| {
+                        let cell = &body[*value as usize];
+                        let pred = first_pattern[idx];
+
+                        cell.is_black() == pred
+                    });
+
+                indices.reverse();
+
+                let second_pattern_matches = indices.iter()
+                    .enumerate()
+                    .all(|(idx, value)| {
+                        let cell = &body[*value as usize];
+                        let pred = second_pattern[idx];
+
+                        cell.is_black() == pred
+                    });
+
+                if first_pattern_matches {
+                    penalty_total += 40;
+                }
+
+                if second_pattern_matches {
+                    penalty_total += 40;
+                }
+
+                col += 1;
+            }
+
+            col = 0;
+        }
+
+        penalty_total
+    }
+
+    pub fn penalty_score_eval_three(&self, body: &Vec<Cell>) -> usize {
+        self.check_columns(&body) + self.check_rows(&body)
     }
 
     pub fn penalty_score_eval_one(&self, body: &Vec<Cell>) -> usize {
@@ -244,7 +307,36 @@ impl QRConfig {
         penalty_total
     }
 
+    pub fn penalty_score_eval_four(&self, body: &Vec<Cell>) -> usize {
+        // total modules
+        let total_modules = body.len() as f64;
+        let black_modules: f64 = body.iter()
+            .fold(0.0, |acc, ref c| {
+                if c.is_black() {
+                    acc + 1.0
+                } else {
+                    acc
+                }
+            });
 
+        let black_percentage = ((black_modules / total_modules) * 100.0).round() as usize;
+        let remainder = black_percentage % 5;
+
+        let prev_mul = black_percentage - remainder;
+        let next_mul = prev_mul + 5;
+
+        let prev_abs = (50 - prev_mul as isize).abs();
+        let next_abs = (50 - next_mul as isize).abs();
+
+        let prev_div = prev_abs / 5;
+        let next_div = next_abs / 5;
+
+        if prev_div < next_div {
+            (prev_div * 10) as usize
+        } else {
+            (next_div * 10) as usize
+        }
+    }
 
     pub fn verify_version(&mut self) {
         // TODO!
