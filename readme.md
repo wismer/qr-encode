@@ -1,6 +1,15 @@
 # QR Encoder
 
-A rust implementation of a QR generator. Uses the [Image](https://github.com/PistonDevelopers/image) cargo package to generate a QR encoded image.
+A rust implementation of a QR generator. Uses the [Image](https://github.com/PistonDevelopers/image) cargo package to generate a QR encoded image, and the rust implementation of the [reed-solomon](https://github.com/mersinvald/reed-solomon-rs) algorithm.
+
+## Currently in development, as you can see by these wonderful images!
+
+### Whoops
+![Whoops](https://github.com/wismer/qr-encode/blob/master/qr-ex-5.png)
+### Oh man
+![Oh man](https://github.com/wismer/qr-encode/blob/master/qr-ex-4.png)
+### What in the world?!
+![What in the world?!](https://github.com/wismer/qr-encode/blob/master/qr-ex-4.png)
 
 # Install
 
