@@ -1,10 +1,13 @@
-#[derive(Copy, Clone)]
+use std::fmt;
+
+#[derive(Copy, Clone, Debug)]
 pub struct Position {
     pub timing: u8,
     pub msg: u8,
     pub algn: u8,
     pub off: u8,
     pub free: u8,
+    pub size: usize,
     pub current_index: usize,
     pub prev_index: usize
 }
@@ -17,48 +20,53 @@ const TOP: u8 = UPPER_RIGHT | UPPER_LEFT;
 const BOTTOM: u8 = LOWER_RIGHT | LOWER_LEFT;
 const LEFT: u8 = LOWER_LEFT | UPPER_LEFT;
 const RIGHT: u8 = LOWER_RIGHT | UPPER_RIGHT;
+const UR_CORNER: u8 = RIGHT | UPPER_LEFT;
+const LR_CORNER: u8 = RIGHT | LOWER_LEFT;
+const LL_CORNER: u8 = LEFT | LOWER_RIGHT;
+const UL_CORNER: u8 = LEFT | UPPER_RIGHT;
+const ALL_CORNER: u8 = TOP | BOTTOM;
+
 
 #[derive(Debug)]
 enum Direction {
     Left,
     Up,
-    UpRight,    
+    UpRight,
     UpLeft,
     Down,
     DownLeft,
     DownRight,
     JumpLeft,
-    AlignmentTimingBlock
+    TimingJumpLateral(isize)
 }
 
-enum DirectionEvent {
-    SkipColumn,
-    SkipRow,
-    SkipAlignment,
-    Ceiling,
-    Floor,
-    ZagUp,
-    ZagDown,
-    Up,
-    Down
+impl fmt::Display for Position {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Position: CurrentIndex = {}, previous_index = {}", self.current_index, self.prev_index)
+    }
 }
 
 impl Position {
-    pub fn new(start_index: usize) -> Position {
+    pub fn new(start_index: usize, size: usize) -> Position {
         Position {
             free: 0,
             algn: 0,
             timing: 0,
             off: 0,
             msg: 0,
+            size: size,
             current_index: start_index,
             prev_index: start_index
         }
     }
 
     fn guess_direction(&self, prev_area: Position, size: usize) -> Direction {
+        let distance_jumped: isize = (self.current_index as isize) - (prev_area.prev_index as isize);
+        // println!("go home matt {} curr: {} prev: {}", distance_jumped, self.current_index, self.prev_index);
         if self.free & UPPER_RIGHT == UPPER_RIGHT && prev_area.free & RIGHT == 0 {
             Direction::UpRight
+        } else if self.timing == TOP || self.timing == BOTTOM {
+            Direction::TimingJumpLateral(distance_jumped)
         } else if self.free & LOWER_RIGHT == LOWER_RIGHT && prev_area.free & RIGHT == 0 {
             Direction::DownRight
         } else if self.timing == TOP && prev_area.prev_index == self.current_index + 2 {
@@ -72,49 +80,161 @@ impl Position {
         }
     }
 
-    fn timing_offside(&self, size: usize, prev_area: Position) -> usize {
-        match self.guess_direction(prev_area, size) {
-            Direction::UpRight => self.current_index - size + 1,
-            Direction::DownRight => self.current_index + size + 1,
-            Direction::Down => self.current_index + size,
-            Direction::Up => self.current_index - size,
-            Direction::Left => {
-                if self.current_index % size == 7 {
-                    self.current_index - 2 // left-hand timing pattern cross-over
-                } else if self.current_index == self.prev_index - 1 {
-                    self.current_index + (size * 2) + 1
-                } else {
-                    self.current_index - 1
-                }
-            }
+    fn near_offside(&self, size: usize, prev_area: Position) -> usize {
+        let row_diff = self.rows_from(prev_area.prev_index);
+
+        match self.off {
+            UR_CORNER | LR_CORNER => self.current_index - 1,
+            RIGHT => self.current_index - 1,
+            BOTTOM if self.free == TOP => self.current_index - size + 1,
+            BOTTOM if self.free == UPPER_LEFT => self.current_index - 1,
+            TOP if self.free == 0 => self.current_index - 1,
+            TOP if self.free == LOWER_LEFT => self.current_index - 1,
+            TOP if self.free == BOTTOM => self.current_index + size + 1,
+            UPPER_RIGHT if self.free == ALL_CORNER ^ UPPER_RIGHT => self.current_index + 1 + size,
+            UPPER_LEFT if self.free & LOWER_RIGHT == LOWER_RIGHT => self.current_index + 1 + size,
+            // TOP => {
+            //     if self.msg == LOWER_RIGHT {
+            //         self.current_index - 1
+            //     } else if row_diff == -2 || row_diff == 0 {
+            //         self.current_index + size + 1
+            //     } else {
+            //         self.current_index - 1
+            //     }
+            // },
             _ => self.current_index - 1
         }
     }
 
-    fn timing_alignment(&self, size: usize, prev_area: Position) -> usize {
-        self.current_index - 1
+    fn timing_offside(&self, size: usize, prev_area: Position) -> usize {
+        // return self.current_index
+        // let row_diff = self.rows_from(prev_area.prev_index);
+                // panic!("This is the current_index: {} previous_index: {}, previous_position.prev_index: {}", self.current_index, self.prev_index, prev_area.prev_index);
+        match self.off {
+            RIGHT => self.current_index - 1,
+            BOTTOM => {
+                if prev_area.off == BOTTOM {
+                    self.current_index - 1
+                } else {
+                    self.current_index - size + 1
+                }
+            },
+            _ => self.current_index - 1
+        }
         // match self.guess_direction(prev_area, size) {
-        //     Direction::UpRight => {
-                
-        //     },
-
-        //     Direction::DownRight => {
-
-        //     },
-
-        //     Direction::Down => {
-
-        //     },
-
-        //     Direction::Up => {
-
-        //     },
-
+        //     Direction::UpRight => self.current_index - size + 1,
+        //     Direction::DownRight => self.current_index + size + 1,
+        //     Direction::Down => self.current_index + size,
+        //     Direction::Up => self.current_index - size,
         //     Direction::Left => {
-
-        //     },
-
+        //         if self.current_index % size == 7 {
+        //             self.current_index - 2 // left-hand timing pattern cross-over
+        //         } else if self.current_index == self.prev_index - 1 {
+        //             self.current_index + (size * 2) + 1
+        //         } else {
+        //             self.current_index - 1
+        //         }
+        //     }
         //     _ => self.current_index - 1
+        // }
+    }
+
+    fn rows_from(&self, index: usize) -> isize {
+        (self.current_index / self.size) as isize - (index / self.size) as isize
+    }
+
+
+    // Positive value denotes a "downward" trajectory, negative "upwards"
+    fn columns_from(&self, index: usize) -> isize {
+        (self.current_index / self.size) as isize - (index / self.size) as isize
+    }
+
+    fn near_timing(&self, prev_area: Position) -> usize {
+        let size = self.size;
+        let distance_jumped: isize = (self.current_index as isize) - (prev_area.prev_index as isize);
+        let same_row = self.current_index + 1 == self.prev_index;
+        // panic!("This is the current_index: {} previous_index: {}, previous_position.prev_index: {}", self.current_index, self.prev_index, prev_area.prev_index);
+        // panic!("sd;lkfsldkfj this should happen {}", ((size - 1) as isize));
+        match self.timing {
+            TOP if distance_jumped == -((size - 1) as isize) => {
+                panic!("sd;lkfsldkfj this should happen {}", ((size - 1) as isize));
+                self.current_index
+            },
+            TOP if distance_jumped == (size - 1) as isize => {
+                panic!("WHYYYYYYY");
+                self.current_index
+            },
+            _ => {
+                panic!("WHYYYYYYY 2 {}", distance_jumped);
+                self.current_index
+            }
+        }
+        // positive Distance Jumped = Traversing Downwards (the current index is greater than position two steps behind)
+        // negative Distance Jumped = Traversing Upwards (current index is lesser)
+        // match self.guess_direction(prev_area, size) {
+        //     Direction::TimingJumpLateral(distance) if distance < -1 => {
+        //         self.current_index + (size * 2) + 1
+        //     },
+        //
+        //     Direction::TimingJumpLateral(distance) => {
+        //         self.current_index - (size * 2) + 1
+        //     },
+        //
+        //     _ => {
+        //         if self.timing == TOP && self.current_index + 1 == self.prev_index {
+        //             self.current_index - (size * 2) + 1
+        //         } else if self.timing == BOTTOM {
+        //             self.current_index
+        //         } else {
+        //             self.current_index
+        //         }
+        //     }
+        // }
+        // match self.timing {
+        //     TOP if distance_jumped == (size * 2 + 1) as isize => {
+        //         self.current_index + size + 1
+        //     },
+        //     TOP if distance_jumped == -((size * 2 + 1) as isize) => {
+        //         self.current_index - size + 1
+        //     },
+        //     TOP if distance_jumped == (size + 1) as isize => {
+        //         // came from the top?
+        //         self.current_index + size + 1
+        //     },
+        //     TOP if distance_jumped == -((size + 1) as isize) => {
+        //         // came from the bottom?
+        //         self.current_index - size + 1
+        //     }
+        //     TOP if self.current_index == prev_area.current_index => {
+        //         self.current_index - (size * 2) + 1
+        //     },
+        //     TOP if prev_area.prev_index == self.current_index - self.size * 2 => {
+        //         self.current_index + size + 1
+        //     },// guard against coming from above
+        //     TOP if distance_jumped == -1 && self.msg == LOWER_RIGHT => {
+        //         self.current_index - (size * 2 + 1)
+        //     },
+        //     TOP => self.current_index - 1,
+        //     BOTTOM if distance_jumped == -1 && self.msg == UPPER_RIGHT => {
+        //         // panic!("dsfgkjdsl;kfjdkls");
+        //         self.current_index + (size * 2 + 1)
+        //     },
+        //     BOTTOM if prev_area.prev_index == self.current_index + (self.size * 2) => self.current_index - size + 1,
+        //     BOTTOM if self.current_index + 1 == self.prev_index && prev_area.msg == TOP => self.current_index + (size * 2) + 1,
+
+        //     _ => {
+        //         if self.free == TOP {
+        //             self.current_index - size + 1
+        //         } else if self.msg == TOP {
+        //             self.current_index - 1
+        //         } else {
+        //             self.current_index
+        //         }
+        //         // self.print_binary(size, prev_area);
+        //         // println!("prev area prev index {}", prev_area.prev_index);
+        //         // panic!("WHYYYYYYY");
+        //         // self.current_index
+        //     }
         // }
     }
 
@@ -196,14 +316,21 @@ impl Position {
         println!("Timing    {:b}", self.timing);
         println!("Previous  {}", self.prev_index);
         println!("Current   {}", self.current_index);
+        println!("Previous Index from previous position: {}", prev_area.prev_index);
+        let distance_jumped: isize = (self.current_index as isize) - (prev_area.prev_index as isize);
+        println!("Distance Jumped {}", distance_jumped);
     }
 
-    pub fn row(&self) -> bool {
-        self.current_index + 1 == self.prev_index
+    pub fn row(&self) -> usize {
+        self.current_index / self.size
     }
 
-    pub fn column(&self, size: usize) -> usize {
-        self.current_index % size
+    pub fn column(&self) -> usize {
+        self.current_index % self.size
+    }
+
+    fn timing_alignment(&self, size: usize, prev_area: Position) -> usize {
+        self.current_index - 1
     }
 
     pub fn near_edge(&self, size: usize, prev_area: Position) -> usize {
@@ -255,86 +382,19 @@ impl Position {
         }
     }
 
-    fn near_timing(&self, size: usize, prev_area: Position) -> usize {
-        match self.guess_direction(prev_area, size) {
-            Direction::DownRight => {
-                if self.off == 0b0110 {
-                    self.current_index - 1
-                } else {
-                    self.current_index + size + 1
-                }
-            },
-
-            Direction::Up => {
-                if self.algn == RIGHT && self.timing == UPPER_LEFT {
-                    self.current_index - (size * 2)
-                } else {
-                    self.current_index - size
-                }
-            },
-
-            Direction::Down => self.current_index + (size * 2),
-
-            Direction::JumpLeft => self.current_index % size - 1,
-
-            Direction::UpRight => {
-                if self.free & 0b0011 == 0 {
-                    self.current_index - 1
-                } else if self.off == 0b1001 {
-                    self.current_index - 1                    
-                } else {
-                    self.current_index - size + 1
-                }
-            },
-
-            Direction::Left => {
-                // if self.timing == TOP && self.prev_index == self.current_index + 1 {
-                    
-                // }
-
-                if self.timing == BOTTOM && prev_area.free == UPPER_LEFT {
-                    self.current_index - size + 1
-                } else if self.timing == BOTTOM && self.prev_index == self.current_index + 1 && prev_area.prev_index < self.current_index {
-                    self.current_index + (size * 2) + 1
-                } else if self.timing == TOP && prev_area.off & prev_area.timing == TOP && prev_area.prev_index > self.current_index {
-                    self.current_index - 1
-                } else if self.timing == TOP && prev_area.timing == BOTTOM {
-                    self.current_index - 1
-                } else if self.timing == TOP && self.prev_index == self.current_index + 1 {
-                    self.current_index - (size * 2) + 1
-                } else if self.algn == LEFT && self.free == 0 {
-                    self.current_index + (size * 2) + 1
-                } else if self.off == LEFT {
-                    self.current_index + (size * 2) + 1
-                } else if self.off == TOP && self.prev_index - self.current_index == 1 {
-                    self.current_index - 2
-                } else if self.algn == TOP && self.timing == LOWER_LEFT {
-                    self.current_index - (size * 6) + 1
-                } else {
-                    self.current_index - 1
-                }
-            },
-
-            Direction::UpLeft => {
-                self.current_index % size - 1
-            },
-
-            _ => self.current_index - 1
-        }
-    }
-
     pub fn adjust_position(mut self, size: usize, prev_area: Position) -> Position {
         // self.print_binary(size, prev_area);
         let former_index = self.current_index;
+
 
         self.current_index = if self.timing > 0 && self.algn > 0 {
             self.timing_alignment(size, prev_area)
         } else if self.timing > 0 && self.off > 0 {
             self.timing_offside(size, prev_area)
         } else if self.timing > 0 {
-            self.near_timing(size, prev_area)
+            self.near_timing(prev_area)
         } else if self.off > 0 {
-            self.near_edge(size, prev_area)
+            self.near_offside(size, prev_area)
         } else if self.algn > 0 {
             self.near_alignment(size, prev_area)
         } else if self.msg == 0b0010 {

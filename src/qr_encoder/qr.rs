@@ -7,13 +7,13 @@ use qr_encoder::cell::{
 
 use qr_encoder::position::Position;
 use qr_encoder::config::{QRConfig};
+use qr_encoder::util::{set_color, get_index_value};
+use qr_encoder::cursor::Cursor;
 
 pub struct QR {
     pub body: Vec<Cell>,
-    pub current_position: Position,
-    pub previous_position: Position
+    pub cursor: Cursor
 }
-
 
 impl QR {
     pub fn encode_meta(&mut self, config: &QRConfig) {
@@ -30,54 +30,71 @@ impl QR {
         }
     }
 
+    pub fn apply_mask(&mut self, config: &QRConfig) {
+        // self.body.into_iter().filter(|c| {
+        //     match c.module_type {
+        //         CellType::Message => true,
+        //         _ => false
+        //     }
+        // });
+    }
+
     pub fn encode_chunk(&mut self, chunk: &u8, chunk_length: usize, config: &QRConfig) {
-        let row_length = config.size - 1;
-        let corners: [(isize, isize); 4] = [
-            (-1, 1),
-            (1, 1),
-            (1, -1),
-            (-1, -1)
+        let mut cursor = &mut self.cursor;
+        let corners: [(isize, isize); 8] = [
+            (-1, 0), // UP
+            (-1, 1), // UR
+            (0, 1), // RIGHT
+            (1, 1), // LR
+            (1, 0), // BOTTOM
+            (1, -1), // LL
+            (0, -1), // LEFT
+            (-1, -1), // UL
         ];
-    
+
         for i in 0..chunk_length {
-            let mut position = Position {
-                free: 0,
-                algn: 0,
-                timing: 0,
-                off: 0,
-                msg: 0,
-                current_index: self.current_position.current_index,
-                prev_index: self.current_position.prev_index
-            };
-
-            let current_point: Point = Point::as_point(position.current_index, config.size);
-
+            let current_index = cursor.current_index;
             let bit = chunk & (1 << (chunk_length - i) - 1);
-            // let color = set_color(i);
-            let color: Color = if bit == 0 {
-                Color { r: 255, g: 255, b: 255 }
-            } else {
-                Color { r: 0, g: 0, b: 0 }
-            };
 
             let mut corner_idx = 0;
 
-            match self.body.get_mut(position.current_index) {
+            match self.body.get_mut(current_index) {
                 Some(cell) => {
-                    // println!("{:?}", cell);
-                    cell.module_type = CellType::Message;
-                    cell.color = color;
+                    match cell.module_type {
+                        CellType::None => {
+                            let color: Color = if config.debug_mode {
+                                set_color(i)
+                            } else if bit == 0 {
+                                cell.value = bit;
+                                Color { r: 255, g: 255, b: 255 }
+                            } else {
+                                cell.value = 1;
+                                Color { r: 0, g: 0, b: 0 }
+                            };
+
+                            cell.module_type = CellType::Message;
+                            cell.color = color;
+                        },
+                        _ => {
+                            if config.debug_mode {
+                                panic!("NO");
+                            }
+                        }
+                    }
                 },
                 None => {
-                    println!("this should never happen {:?}", current_point);
+                    panic!("this should never happen {:?}", current_index);
                 }
             }
 
-            while corner_idx < 4 {
+            while corner_idx < 8 {
+                // unnecessary conversion occuring here. FIXME
                 let corner = corners[corner_idx];
-                let next_point = current_point >> corner;
-                let next_idx = next_point.idx(config.size);
-                let cell_ref = self.body.get(next_idx);
+                let cell_ref = match get_index_value(current_index as isize, corner, config.size as isize) {
+                    Some(next_idx) => self.body.get(next_idx),
+                    None => None
+                };
+
                 let off_edge = cell_ref.is_none();
 
                 /*
@@ -103,43 +120,56 @@ impl QR {
 
                 */
 
-                if off_edge || next_point.1 >= config.size {
-                    position.off ^= 1 << corner_idx;
+                if off_edge {
+                    cursor.context.off ^= 1 << corner_idx;
                     corner_idx += 1;
                     continue;
                 }
+
                 let cell = cell_ref.unwrap();
 
                 match cell.module_type {
                     CellType::None => {
                         // set no bits
-                        position.free ^= 1 << corner_idx;
+                        cursor.context.free ^= 1 << corner_idx;
                     },
 
                     CellType::Timing => {
                         // set bits but not yet
-                        position.timing ^= 1 << corner_idx;
+                        cursor.context.timing ^= 1 << corner_idx;
                     },
 
                     CellType::Message => {
-                        position.msg ^= 1 << corner_idx;
+                        cursor.context.msg ^= 1 << corner_idx;
                     },
 
                     CellType::Alignment => {
-                        position.algn ^= 1 << corner_idx;
+                        cursor.context.algn ^= 1 << corner_idx;
                     },
 
                     _ => {
                         // set bits but not yet
-                        position.off ^= 1 << corner_idx;
+                        cursor.context.off ^= 1 << corner_idx;
                     }
                 }
                 corner_idx += 1;
             }
 
+            cursor.move_cursor(config.size);
+
             // after each corner gets examined, copy the current position context and save it to the previous position context
-            self.previous_position = self.current_position;
-            self.current_position = position.adjust_position(config.size, self.previous_position);
+            // overwrite the previous position to the current one (which is really just one step behind)
+            // three points:
+            // 1: where the cursor was BEFORE the state changes
+            // let previous_position_index = self.previous_position.current_index;
+            // self.previous_position = self.current_position;
+            // self.previous_position.prev_index = previous_position_index;
+            // // then set the current position with the proper context
+            // self.current_position = position.adjust_position(config.size, self.previous_position);
+            // if self.current_position.timing > 0 {
+            //     println!("{}", (self.current_position.current_index as isize) - (self.previous_position.prev_index as isize));
+            //     println!("curr {}, prev {}, prev prev: {}", self.current_position.current_index, self.current_position.prev_index, self.previous_position.prev_index);
+            // }
         }
     }
 

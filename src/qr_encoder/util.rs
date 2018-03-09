@@ -165,6 +165,19 @@ pub fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
     pixels
 }
 
+pub fn get_index_value(index: isize, modifiers: (isize, isize), canvas_size: isize) -> Option<usize> {
+    let x = index / canvas_size;
+    let y = index % canvas_size;
+    let cx = x + modifiers.0;
+    let cy = y + modifiers.1;
+
+    if (cx > -1 && cx < canvas_size) && (cy > -1 && cy < canvas_size) {
+        Some((cx * canvas_size + cy) as usize)
+    } else {
+        None
+    }
+}
+
 pub fn square_count(version: usize) -> usize {
     (((version - 1) * 4) + 21)
 }
@@ -253,9 +266,9 @@ fn get_ec_level(level: &str) -> ECLevel {
 //         codewords.push(first_part as u8);
 //         codewords.push(second_part as u8);
 //     } else {
-// 
+//
 //     }
-// 
+//
 // }
 
 pub fn args() -> QRConfig {
@@ -275,6 +288,7 @@ pub fn args() -> QRConfig {
     let mut ec_level: ECLevel = ECLevel::Medium;
     let encoding = 4u8;
     let mut arg = qr_args.next();
+    let mut debug_mode = false;
 
     while arg.is_some() {
         let value = arg.unwrap();
@@ -306,19 +320,27 @@ pub fn args() -> QRConfig {
                 },
                 None => ECLevel::Medium
             }
+        } else if value == OsStr::new("-DEBUG") {
+            debug_mode = true;
         }
 
 
         arg = qr_args.next();
     }
 
+    let mut data = data.unwrap();
+    let codeword_properties = codeword_info(version, &ec_level);
+    data.truncate(codeword_properties.capacity - codeword_properties.ecc_codeword_count);
+
     QRConfig {
         version: version,
-        data: data.unwrap(),
+        data: data,
         codewords: vec![],
-        codeword_properties: codeword_info(version, &ec_level),
+        codeword_properties: codeword_properties,
+        mask: 1,
         encoding: 4u8,
         encoding_mode: EncodingMode::Byte,
+        debug_mode: debug_mode,
         requires_alignment: version > 1,
         err_correction_level: ec_level,
         size: (((version - 1) * 4) + 21),
