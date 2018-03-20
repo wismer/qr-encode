@@ -77,25 +77,24 @@ fn main() {
             qr.encode_chunk(&byte, 8, &config);
         }
     }
-    let mut penalty_total = 0;
-    let first = config.penalty_score_eval_one(&qr.body);
-    println!("1: {:?}", first);
-    let second = config.penalty_score_eval_two(&qr.body);
-    println!("2: {:?}", second);
-    let third = config.penalty_score_eval_three(&qr.body);
-    println!("3: {:?}", third);
-    let fourth = config.penalty_score_eval_four(&qr.body);
-    println!("4: {:?}", fourth);
 
     {
-        let qrbody = &mut qr.body;
-        for cell in qrbody {
-            match cell.module_type {
-                CellType::Message => cell.apply_mask(config.mask),
-                _ => {}
+        let body = &mut qr.body;
+        let mut best = 0;
+        let mut best_pattern = 0;
+        for pattern in 0..7 {
+            let mut copy = &mut body.clone();
+            config.apply_mask_pattern(&mut copy, pattern);
+            let score = config.eval_penalty_scores(copy);
+            if best == 0 || score < best {
+                best = score;
+                best_pattern = pattern;
             }
         }
+
+        println!("Best Pattern: {} score: {}", best_pattern, best);
     }
+
 
     create_qr_image(&qr, &config);
 }

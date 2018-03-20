@@ -16,29 +16,6 @@ pub struct QR {
 }
 
 impl QR {
-    pub fn encode_meta(&mut self, config: &QRConfig) {
-        let data_length = config.data.len() as u8;
-        let size_message = config.get_content_length();
-        let mode = config.encoding;
-
-        self.encode_chunk(&mode, 4, config); // the encoding mode block
-        self.encode_chunk(&data_length, 8, config);
-
-        if size_message > 8 {
-            let remaining_bits = data_length.rotate_right(size_message as u32);
-            self.encode_chunk(&remaining_bits, size_message - 8, config);
-        }
-    }
-
-    pub fn apply_mask(&mut self, config: &QRConfig) {
-        // self.body.into_iter().filter(|c| {
-        //     match c.module_type {
-        //         CellType::Message => true,
-        //         _ => false
-        //     }
-        // });
-    }
-
     pub fn encode_chunk(&mut self, chunk: &u8, chunk_length: usize, config: &QRConfig) {
         let mut cursor = &mut self.cursor;
         let corners: [(isize, isize); 8] = [
