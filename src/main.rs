@@ -5,9 +5,7 @@ extern crate reed_solomon;
 
 use qr_encoder::qr::QR;
 use qr_encoder::config::{QRConfig};
-use qr_encoder::util::{codeword_info, get_pixel_points, square_count, args, CodeWord};
-use qr_encoder::position::Position;
-use qr_encoder::cell::{Point, Color, CellType};
+use qr_encoder::util::{get_pixel_points, args};
 use qr_encoder::cursor::{Cursor, QRContext};
 
 use std::fs::File;
@@ -17,7 +15,7 @@ use self::image_lib::{
     ImageBuffer,
     Rgba
 };
-use self::reed_solomon::Encoder;
+
 
 
 fn create_qr_image(qr: &QR, config: &QRConfig) {
@@ -92,6 +90,7 @@ fn main() {
             }
         }
 
+        config.apply_mask_pattern(body, best_pattern);
         println!("Best Pattern: {} score: {}", best_pattern, best);
     }
 

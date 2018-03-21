@@ -196,27 +196,27 @@ pub fn set_color(index: usize) -> Color {
         _ => Color { r: 255, g: 255, b: 0 }
     }
 }
-
-fn get_content_length(mode: u8, version: usize) -> usize {
-    let modifier = match version {
-        1...10 => 0,
-        11...27 => 2,
-        _ => 4
-    };
-
-    match mode {
-        1 => 10 + modifier,
-        2 => 9 + modifier,
-        8 => 12 + modifier,
-        _ => {
-            if version < 10 {
-                8
-            } else {
-                16
-            }
-        }
-    }
-}
+//
+// fn get_content_length(mode: u8, version: usize) -> usize {
+//     let modifier = match version {
+//         1...10 => 0,
+//         11...27 => 2,
+//         _ => 4
+//     };
+//
+//     match mode {
+//         1 => 10 + modifier,
+//         2 => 9 + modifier,
+//         8 => 12 + modifier,
+//         _ => {
+//             if version < 10 {
+//                 8
+//             } else {
+//                 16
+//             }
+//         }
+//     }
+// }
 
 fn get_ec_level(level: &str) -> ECLevel {
     match level {
@@ -226,50 +226,6 @@ fn get_ec_level(level: &str) -> ECLevel {
         _ => ECLevel::Medium
     }
 }
-
-// fn get_best_version_for_content(cw: &CodeWord, data: &Vec<u8>, mode: u8, requested_version: usize) -> usize {
-//     // TODO: make the `request_version` an Option type
-//     // make a copy of the data
-//     // something to figure out....
-//     // do I do the padding first, so it's evenly divisible by 8, or figure out the mode first?
-
-
-//     let mut content = data.clone();
-//     content.insert(0, mode);
-
-//     let content_length = get_content_length(mode, requested_version) + 4; // 4bits (mode) + (x)bits content length
-//     let rem = content_length % 8;
-//     if rem != 0 {
-//         match content.last_mut() {
-//             Some(n) => n = n << rem,
-//             None => {}
-//         }
-//     }
-
-
-// }
-
-// fn split_int(left: u8, right: u8) -> ()
-
-// fn convert_data_into_codewords(cw: &CodeWord, data: &Vec<u8>, mode: u8, version: usize) -> Vec<u8> {
-//     // first pad the combined bits of mode, content length, and data.
-//     let data_length = data.len();
-//     let content_length = get_content_length(mode, version);
-//     let mut codewords: Vec<u8> = vec![];
-
-//     codewords.push(mode);
-
-//     if content_length > 8 {
-//         // as a 16 bit integer, AND it
-//         let first_part = (data_length as u16).rotate_right(8);
-//         let second_part = data_length as u16;
-//         codewords.push(first_part as u8);
-//         codewords.push(second_part as u8);
-//     } else {
-//
-//     }
-//
-// }
 
 pub fn args() -> QRConfig {
     /*
@@ -286,7 +242,7 @@ pub fn args() -> QRConfig {
     let mut version = 14usize;
     let mut data: Option<Vec<u8>> = None;
     let mut ec_level: ECLevel = ECLevel::Medium;
-    let encoding = 4u8;
+    // let encoding = 4u8;
     let mut arg = qr_args.next();
     let mut debug_mode = false;
 

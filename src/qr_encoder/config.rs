@@ -9,7 +9,7 @@ use qr_encoder::cell::{
     Color,
     PlotPoint
 };
-use qr_encoder::util::{CodeWord, codeword_info};
+use qr_encoder::util::{CodeWord};
 
 
 pub enum ECLevel {
@@ -42,20 +42,6 @@ pub struct QRConfig {
 }
 
 
-fn draw_paths(step: isize, start: isize, modules: usize, canvas_size: isize) -> Option<[isize; 7]> {
-    let mut steps = [0, 0, 0, 0, 0, 0, 0];
-    let end_point = (step * (modules as isize)) + start;
-
-    if end_point < 0 || end_point >= (canvas_size * canvas_size) {
-        return None
-    }
-
-    for i in 0..modules {
-        steps[i] = start + (step * (i as isize));
-    }
-
-    Some(steps)
-}
 
 fn arrange_group(blocks: &Vec<Buffer>, range: Range<usize>, ecc_blocks: usize) -> Vec<u8> {
     let mut data_section: Vec<u8> = vec![];
@@ -159,7 +145,6 @@ impl QRConfig {
     }
 
     pub fn penalty_score_eval_two(&self, body: &Vec<Cell>) -> usize {
-        let mut idx = 0;
         let mut penalty_total = 0;
         let canvas_size = self.size;
 
@@ -169,29 +154,18 @@ impl QRConfig {
             1
         ];
 
-        loop {
-            let cell = match body.get(idx) {
-                Some(c) => c,
-                None => panic!("should this happen? {}, score: {}", idx, penalty_total)
-            };
+        for x in 0..(canvas_size - 1) {
+            for y in 0..(canvas_size - 1) {
+                let idx = (x * canvas_size) + y;
+                let is_black = body[idx].is_black();
+                let square = adjacent_coords.into_iter()
+                    .map(|&i| body[i + idx].is_black())
+                    .all(|p| p == is_black);
 
-            if cell.point.1 == canvas_size - 1 {
-                idx += 1;
-                continue;
-            } else if cell.point.0 == canvas_size - 1 {
-                break;
+                if square {
+                    penalty_total += 3;
+                }
             }
-
-            let look_for_black = cell.is_black();
-            let square = adjacent_coords.into_iter()
-                .map(|&i| body[i + idx].is_black())
-                .all(|p| p == look_for_black);
-
-            if square {
-                penalty_total += 3;
-            }
-
-            idx += 1;
         }
 
         penalty_total
@@ -199,8 +173,6 @@ impl QRConfig {
 
 
     fn check_column(&self, body: &Vec<Cell>, column: isize) -> usize {
-        let mut idx = column as usize;
-        let canvas_size = self.size as isize;
         let mut subtotal = 0;
         let pattern_mask: u16 = 0b00001011101;
         let reverse_mask: u16 = 0b10111010000;
@@ -389,7 +361,7 @@ impl QRConfig {
         let ecc_len = self.codeword_properties.ecc_codeword_count;
         let encoder = Encoder::new(ecc_len);
         let (group_one_total_data, group_two_total_data) = self.codeword_properties.get_data_cw_total_for_groups();
-        let (group_one_blocks, group_two_blocks) = self.codeword_properties.get_block_count_for_groups();
+        let (group_one_blocks, _group_two_blocks) = self.codeword_properties.get_block_count_for_groups();
         let data_codewords = &mut self.codewords;
 
         let mut group_one_data: Vec<Buffer> = vec![];

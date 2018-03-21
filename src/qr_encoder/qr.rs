@@ -5,7 +5,6 @@ use qr_encoder::cell::{
     Color
 };
 
-use qr_encoder::position::Position;
 use qr_encoder::config::{QRConfig};
 use qr_encoder::util::{set_color, get_index_value};
 use qr_encoder::cursor::Cursor;
@@ -17,7 +16,7 @@ pub struct QR {
 
 impl QR {
     pub fn encode_chunk(&mut self, chunk: &u8, chunk_length: usize, config: &QRConfig) {
-        let mut cursor = &mut self.cursor;
+        let cursor = &mut self.cursor;
         let corners: [(isize, isize); 8] = [
             (-1, 0), // UP
             (-1, 1), // UR
