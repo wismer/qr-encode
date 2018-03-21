@@ -1,4 +1,3 @@
-use qr_encoder::cell::{Point};
 use std::fmt;
 
 
@@ -17,8 +16,6 @@ const NNE: u8 = N | NE;
 const ENE: u8 = E | NE;
 const ESE: u8 = E | SE;
 const SSE: u8 = SE | S;
-const SSW: u8 = S | SW;
-const WSW: u8 = SW | W;
 const WNW: u8 = W | NW;
 const NNW: u8 = NW | N;
 
@@ -29,10 +26,6 @@ const LEFT: u8 = 224;        // 0b11100000
 const RIGHT: u8 = 14;        // 0b00001110;
 
 const UR_CORNER: u8 = TOP | RIGHT;
-const LL_CORNER: u8 = LEFT | BOTTOM;
-const UL_CORNER: u8 = LEFT | TOP;
-
-const LR_LEDGE: u8 = RIGHT << 1;
 
 pub struct QRContext {
     pub free: u8,
@@ -48,22 +41,10 @@ pub struct Cursor {
     pub context: QRContext
 }
 
-fn count_bits(n: u8) -> usize {
-    let mut count = 0;
-    for i in 0..8 {
-        let bit = (n >> i) & 1;
-        if bit == 1 {
-            count += 1;
-        }
-    }
-
-    count
-}
 
 impl fmt::Display for QRContext {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // write!(f, "Position: CurrentIndex = {}, previous_index = {}", self.current_index, self.prev_index)
-        let mut start: u8 = 0b10000000;
         let mut context_canvas = String::from("");
         let order = [7, 0, 1, 6, 9, 2, 5, 4, 3];
 
@@ -111,7 +92,6 @@ impl Cursor {
     fn timing(&self, canvas_size: isize, idx: isize) -> isize {
         let msg = self.context.msg;
         let timing = self.context.timing;
-        let free = self.context.free;
         let col = idx % canvas_size;
         let row = idx / canvas_size;
 
@@ -221,7 +201,7 @@ impl Cursor {
 
     fn get_next_position(&self, canvas_size: isize) -> usize {
         let current_index = self.current_index as isize;
-        println!("{} \n with index being {:?} \n {:?}", self.context, (current_index / canvas_size, current_index % (canvas_size)), self.drawn_path);
+        // println!("{} \n with index being {:?} \n {:?}", self.context, (current_index / canvas_size, current_index % (canvas_size)), self.drawn_path);
 
         let modifier: isize = if self.context.free & SE == SE {
             canvas_size + 1

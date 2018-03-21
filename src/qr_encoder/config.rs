@@ -9,7 +9,7 @@ use qr_encoder::cell::{
     Color,
     PlotPoint
 };
-use qr_encoder::util::{CodeWord, codeword_info};
+use qr_encoder::util::{CodeWord};
 
 
 pub enum ECLevel {
@@ -40,6 +40,8 @@ pub struct QRConfig {
     pub size: usize,
     pub err_correction_level: ECLevel
 }
+
+
 
 fn arrange_group(blocks: &Vec<Buffer>, range: Range<usize>, ecc_blocks: usize) -> Vec<u8> {
     let mut data_section: Vec<u8> = vec![];
@@ -96,8 +98,53 @@ impl QRConfig {
         self.codeword_properties.ecc_codeword_count
     }
 
+    pub fn get_mask_pattern(&self, n: usize) -> Box<Fn(usize, usize) -> bool> {
+        match n {
+            0 => Box::new(move |row: usize, col: usize| (row + col) % 2 == 0),
+            1 => Box::new(move |row: usize, _: usize| row % 2 == 0),
+            2 => Box::new(move |_: usize, col: usize| col % 3 == 0),
+            3 => Box::new(move |row: usize, col: usize| (row + col) % 3 == 0),
+            4 => Box::new(move |row: usize, col: usize| ((row / 2) + (col / 3)) % 2 == 0),
+            5 => Box::new(move |row: usize, col: usize| ((row * col) % 2) + ((row * col) % 3) == 0),
+            6 => Box::new(move |row: usize, col: usize| (((row * col) % 2) + ((row * col) % 3) ) % 2 == 0),
+            _ => Box::new(move |row: usize, col: usize| (((row + col) % 2) + ((row * col) % 3) ) % 2 == 0)
+        }
+    }
+
+    pub fn apply_mask_pattern(&self, body: &mut Vec<Cell>, n: usize) {
+        let pattern = self.get_mask_pattern(n);
+
+        for cell in body {
+            match cell.module_type {
+                CellType::Message => {
+                    let flip_module = pattern(cell.point.0, cell.point.1);
+                    if flip_module && cell.is_black() {
+                        cell.color = Color { r: 255, g: 255, b: 255 };
+                    } else if flip_module {
+                        cell.color = Color { r: 0, g: 0, b: 0 };
+                    }
+                },
+                _ => {}
+            }
+        }
+    }
+
+    pub fn eval_penalty_scores(&self, body: &Vec<Cell>) -> usize {
+        let one = self.penalty_score_eval_one(body);
+        let two = self.penalty_score_eval_two(body);
+        let three = self.penalty_score_eval_three(body);
+        let four = self.penalty_score_eval_four(body);
+        let total = one + two + three + four;
+        println!("1: {}", one);
+        println!("2: {}", two);
+        println!("3: {}", three);
+        println!("4: {}", four);
+        println!("total: {}", total);
+
+        total
+    }
+
     pub fn penalty_score_eval_two(&self, body: &Vec<Cell>) -> usize {
-        let mut idx = 0;
         let mut penalty_total = 0;
         let canvas_size = self.size;
 
@@ -107,138 +154,80 @@ impl QRConfig {
             1
         ];
 
-        loop {
-            let cell = match body.get(idx) {
-                Some(c) => c,
-                None => panic!("should this happen? {}, score: {}", idx, penalty_total)
-            };
+        for x in 0..(canvas_size - 1) {
+            for y in 0..(canvas_size - 1) {
+                let idx = (x * canvas_size) + y;
+                let is_black = body[idx].is_black();
+                let square = adjacent_coords.into_iter()
+                    .map(|&i| body[i + idx].is_black())
+                    .all(|p| p == is_black);
 
-            if cell.point.1 == canvas_size - 1 {
-                idx += 1;
-                continue;
-            } else if cell.point.0 == canvas_size - 1 {
-                break;
+                if square {
+                    penalty_total += 3;
+                }
             }
-
-            let look_for_black = cell.is_black();
-            let square = adjacent_coords.into_iter()
-                .map(|&i| body[i + idx].is_black())
-                .all(|p| p == look_for_black);
-
-            if square {
-                penalty_total += 3;
-            }
-
-            idx += 1;
         }
 
         penalty_total
     }
 
-    fn check_columns(&self, body: &Vec<Cell>) -> usize {
-        let first_pattern = [true, false, true, true, true, false, true, false, false, false];
-        let second_pattern = [false, false, false, false, true, false, true, true, true, false, true];
-        let canvas_size = self.size;
-        let mut penalty_total = 0;
-        let mut row = 0;
-        let depth = 10;
 
-        for i in 0..canvas_size {
-            while row + depth < canvas_size {
-                let mut start_point = Point(row, i);
-                let destination_point = Point(row + depth, i);
-                let mut indices = start_point.to(destination_point, canvas_size as isize);
+    fn check_column(&self, body: &Vec<Cell>, column: isize) -> usize {
+        let mut subtotal = 0;
+        let pattern_mask: u16 = 0b00001011101;
+        let reverse_mask: u16 = 0b10111010000;
+        let remap_pattern: u16 = 0b11111111111;
+        let mut current_pattern = 0;
+        for row in 0..self.size {
+            let idx = (row * self.size) + column as usize;
+            let cell = &body[idx];
 
-                let first_pattern_matches = indices.iter()
-                    .enumerate()
-                    .all(|(idx, value)| {
-                        let cell = &body[*value as usize];
-                        let pred = first_pattern[idx];
-
-                        cell.is_black() == pred
-                    });
-
-                indices.reverse();
-
-                let second_pattern_matches = indices.iter()
-                    .enumerate()
-                    .all(|(idx, value)| {
-                        let cell = &body[*value as usize];
-                        let pred = second_pattern[idx];
-
-                        cell.is_black() == pred
-                    });
-
-                if first_pattern_matches {
-                    penalty_total += 40;
-                }
-
-                if second_pattern_matches {
-                    penalty_total += 40;
-                }
-
-                row += 1;
+            if cell.is_black() {
+                current_pattern = ((current_pattern << 1) ^ 1) & remap_pattern;
+            } else {
+                current_pattern = (current_pattern << 1) & remap_pattern;
             }
 
-            row = 0;
+            if row >= 9 && current_pattern == pattern_mask || current_pattern == reverse_mask {
+                subtotal += 40;
+            }
         }
 
-        penalty_total
+        subtotal
     }
 
-    fn check_rows(&self, body: &Vec<Cell>) -> usize {
-        let first_pattern = [true, false, true, true, true, false, true, false, false, false];
-        let second_pattern = [false, false, false, false, true, false, true, true, true, false, true];
-        let canvas_size = self.size;
-        let mut penalty_total = 0;
-        let mut col = 0;
-        let depth = 10;
+    fn check_row(&self, body: &Vec<Cell>, row: isize) -> usize {
+        let mut subtotal = 0;
+        let pattern_mask: u16 = 0b00001011101;
+        let reverse_mask: u16 = 0b10111010000;
+        let remap_pattern: u16 = 0b11111111111;
+        let mut current_pattern = 0;
+        for column in 0..self.size {
+            let idx = ((row as usize) * self.size) + column as usize;
+            let cell = &body[idx];
 
-        for i in 0..canvas_size {
-            while col + depth < canvas_size {
-                let mut start_point = Point(i, col);
-                let destination_point = Point(i, col + depth);
-                let mut indices = start_point.to(destination_point, canvas_size as isize);
-
-                let first_pattern_matches = indices.iter()
-                    .enumerate()
-                    .all(|(idx, value)| {
-                        let cell = &body[*value as usize];
-                        let pred = first_pattern[idx];
-
-                        cell.is_black() == pred
-                    });
-
-                indices.reverse();
-
-                let second_pattern_matches = indices.iter()
-                    .enumerate()
-                    .all(|(idx, value)| {
-                        let cell = &body[*value as usize];
-                        let pred = second_pattern[idx];
-
-                        cell.is_black() == pred
-                    });
-
-                if first_pattern_matches {
-                    penalty_total += 40;
-                }
-
-                if second_pattern_matches {
-                    penalty_total += 40;
-                }
-
-                col += 1;
+            if cell.is_black() {
+                current_pattern = ((current_pattern << 1) ^ 1) & remap_pattern;
+            } else {
+                current_pattern = (current_pattern << 1) & remap_pattern;
             }
 
-            col = 0;
+            if column >= 9 && current_pattern == pattern_mask || current_pattern == reverse_mask {
+                subtotal += 40;
+            }
         }
 
-        penalty_total
+        subtotal
     }
 
     pub fn penalty_score_eval_three(&self, body: &Vec<Cell>) -> usize {
-        self.check_columns(&body) + self.check_rows(&body)
+        let mut penalty_total = 0;
+
+        for i in 0..self.size {
+            penalty_total += self.check_column(body, i as isize);
+            penalty_total += self.check_row(body, i as isize);
+        }
+        penalty_total
     }
 
     pub fn penalty_score_eval_one(&self, body: &Vec<Cell>) -> usize {
@@ -254,7 +243,6 @@ impl QRConfig {
                 if consecutive_same_color >= 5 {
                     penalty_total += consecutive_same_color - 2;
                 }
-                println!("ROW {}: {}", current_row, penalty_total);
                 consecutive_same_color = 1;
                 tracking_black = cell.is_black();
                 current_row = cell.point.0;
@@ -331,11 +319,14 @@ impl QRConfig {
         let prev_div = prev_abs / 5;
         let next_div = next_abs / 5;
 
+
         if prev_div < next_div {
             (prev_div * 10) as usize
         } else {
             (next_div * 10) as usize
         }
+
+
     }
 
     pub fn verify_version(&mut self) {
@@ -370,7 +361,7 @@ impl QRConfig {
         let ecc_len = self.codeword_properties.ecc_codeword_count;
         let encoder = Encoder::new(ecc_len);
         let (group_one_total_data, group_two_total_data) = self.codeword_properties.get_data_cw_total_for_groups();
-        let (group_one_blocks, group_two_blocks) = self.codeword_properties.get_block_count_for_groups();
+        let (group_one_blocks, _group_two_blocks) = self.codeword_properties.get_block_count_for_groups();
         let data_codewords = &mut self.codewords;
 
         let mut group_one_data: Vec<Buffer> = vec![];
@@ -418,8 +409,8 @@ impl QRConfig {
             let mut first_byte = encoding << 4;
             let mut second_byte = data_cw_length as u8;
             let mut index = 0;
+
             loop {
-                println!("WHAT THE FUCK {} vs {}", index, data_cw_length);
                 codewords.push(first_byte | (second_byte >> 4));
                 first_byte = second_byte << 4;
 
@@ -498,8 +489,8 @@ impl QRConfig {
         let mut blocks = 6 * 3;
         while blocks > 0 {
             let indices: [usize; 2] = [
-                Point(x, y).idx(self.size),
-                Point(y, x).idx(self.size)
+                x * self.size + y,
+                y * self.size + x
             ];
             for index in indices.into_iter() {
                 match body.get_mut(*index) {
@@ -523,11 +514,11 @@ impl QRConfig {
     }
 
     pub fn apply_reserve_format_areas(&self, body: &mut Vec<Cell>) {
-        let mut vertical = Point(0, 8);
-        let mut horizontal = Point(8, 0);
+        let mut vertical: Point<usize> = Point(0, 8);
+        let mut horizontal: Point<usize> = Point(8, 0);
 
         while horizontal.1 < self.size {
-            let idx = horizontal.idx(self.size);
+            let idx = (horizontal.0 * self.size) + horizontal.1;
             match body.get_mut(idx) {
                 Some(cell) => {
                     cell.module_type = CellType::Format;
@@ -544,7 +535,7 @@ impl QRConfig {
         }
 
         while vertical.0 < self.size {
-            let idx = vertical.idx(self.size);
+            let idx = (vertical.0 * self.size) + vertical.1;
             match body.get_mut(idx) {
                 Some(cell) => {
                     cell.module_type = CellType::Format;
@@ -563,8 +554,8 @@ impl QRConfig {
     }
 
     pub fn apply_dark_module(&self, body: &mut Vec<Cell>) {
-        let dark_module_coord = Point((4 * self.version) + 9, 8);
-        let idx = dark_module_coord.idx(self.size);
+        let dark_module_coord: Point<usize> = Point((4 * self.version) + 9, 8);
+        let idx = (dark_module_coord.0 * self.size) + dark_module_coord.1;
         match body.get_mut(idx) {
             Some(cell) => {
                 cell.module_type = CellType::DarkModule;
@@ -576,7 +567,7 @@ impl QRConfig {
 
     pub fn apply_alignment_patterns(&self, body: &mut Vec<Cell>, points: &Vec<PlotPoint>) {
         for plot_point in points {
-            let idx = plot_point.point.idx(self.size);
+            let idx = (plot_point.point.0 * self.size) + plot_point.point.1;
             match body.get_mut(idx) {
                 Some(cell) => {
                     cell.module_type = CellType::Alignment;
@@ -615,12 +606,12 @@ impl QRConfig {
         x = start_x;
         y = start_y;
         loop {
-            let pt = Point(x, y);
-            let idx = pt.idx(self.size);
+            let pt: Point<usize> = Point(x, y);
+            let idx = (pt.0 * self.size) + pt.1;
             match body.get_mut(idx) {
                 Some(c) => {
                     c.module_type = CellType::Separator;
-                    c.color = Color { r: 20, g: 255, b: 255 };
+                    c.color = Color { r: 255, g: 255, b: 255 };
                 },
                 None => panic!("dunno idx {} x: {} y: {}", idx, x, y)
             }
@@ -643,9 +634,9 @@ impl QRConfig {
         }
     }
 
-    pub fn apply_finder_patterns(&self, body: &mut Vec<Cell>, alignment_point: Point) {
+    pub fn apply_finder_patterns(&self, body: &mut Vec<Cell>, alignment_point: Point<usize>) {
         for plot_point in self.plot_spiral(&alignment_point, 6, 0) {
-            let idx = plot_point.point.idx(self.size);
+            let idx = (plot_point.point.0 * self.size) + plot_point.point.1;
             match body.get_mut(idx) {
                 Some(cell) => {
                     cell.module_type = CellType::Finder;
@@ -662,8 +653,8 @@ impl QRConfig {
             if x >= self.size - 7 {
                 break;
             }
-            let pt = Point(x, y);
-            let idx = pt.idx(self.size);
+            let pt: Point<usize> = Point(x, y);
+            let idx = (pt.0 * self.size) + pt.1;
             match body.get_mut(idx) {
                 Some(cell) => {
                     match cell.module_type {
@@ -719,7 +710,7 @@ impl QRConfig {
         let pts: Vec<PlotPoint> = self.get_point_combinations(pts)
             .into_iter()
             .filter(|pt| {
-                let idx = pt.idx(self.size);
+                let idx = (pt.0 * self.size) + pt.1;
                 let cell_ref = body.get(idx);
                 if cell_ref.is_none() {
                     return false
@@ -743,8 +734,8 @@ impl QRConfig {
         pts
     }
 
-    pub fn get_point_combinations(&self, numbers: Vec<usize>) -> Vec<Point> {
-        let mut pairs: Vec<Point> = vec![]; //numbers.iter().map(|n| (*n, *n)).collect();
+    pub fn get_point_combinations(&self, numbers: Vec<usize>) -> Vec<Point<usize>> {
+        let mut pairs: Vec<Point<usize>> = vec![]; //numbers.iter().map(|n| (*n, *n)).collect();
         let xnumbers: Vec<usize> = numbers.iter().cloned().collect();
         for n in numbers {
             for xn in xnumbers.iter() { // can I use the same vec inside its iteration?
@@ -754,7 +745,7 @@ impl QRConfig {
         pairs
     }
 
-    pub fn plot_spiral(&self, origin_pt: &Point, size: usize, diff: usize) -> Vec<PlotPoint> {
+    pub fn plot_spiral(&self, origin_pt: &Point<usize>, size: usize, diff: usize) -> Vec<PlotPoint> {
         let mut plot_points: Vec<PlotPoint> = vec![];
         let mut max = size;
         let mut depth = 0;
