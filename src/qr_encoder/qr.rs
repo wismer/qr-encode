@@ -161,9 +161,10 @@ impl QR {
             config.apply_alignment_patterns(&mut self.body, &alignment_points);
         }
 
-        config.apply_timer_patterns(&mut self.body);
-        config.apply_dark_module(&mut self.body);
+
         config.apply_reserve_format_areas(&mut self.body);
+        config.apply_dark_module(&mut self.body);
+        config.apply_timer_patterns(&mut self.body);
 
         // version information area
         if config.version > 6 {
