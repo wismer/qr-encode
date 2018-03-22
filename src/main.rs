@@ -20,18 +20,24 @@ use self::image_lib::{
 
 fn create_qr_image(qr: &QR, config: &QRConfig) {
     let dimensions: u32 = (config.size) as u32;
-    let mut img = ImageBuffer::new(dimensions * 20, dimensions * 20);
+    let mut img = ImageBuffer::new(dimensions * 28, dimensions * 28);
+
+    for pixel in img.pixels_mut() {
+        let white: Rgba<u8> = Rgba { data: [255, 255, 255, 255] };
+        *pixel = white;
+    }
+
     for cell in &qr.body {
         for pixel in get_pixel_points(&cell) {
             let (x, y, color) = pixel;
-            if x % 20 == 0 || y % 20 == 0 {
-                // cell border
-                let rgb = Rgba { data: [125, 125, 125, 255] };
-                img.put_pixel(x, y, rgb);
-            } else {
-                let rgb = Rgba { data: [color.r as u8, color.g as u8, color.b as u8, 255] };
-                img.put_pixel(x, y, rgb);
-            }
+            // if x % 20 == 0 || y % 20 == 0 {
+                // // cell border
+                // let rgb = Rgba { data: [125, 125, 125, 255] };
+                // img.put_pixel(x, y, rgb);
+            // } else {
+            let rgb = Rgba { data: [color.r as u8, color.g as u8, color.b as u8, 255] };
+            img.put_pixel(x, y, rgb);
+            // }
         }
     }
 
@@ -92,6 +98,8 @@ fn main() {
 
         config.apply_mask_pattern(body, best_pattern);
         println!("Best Pattern: {} score: {}", best_pattern, best);
+
+        config.encode_format_areas(body, best_pattern as u8);
     }
 
 

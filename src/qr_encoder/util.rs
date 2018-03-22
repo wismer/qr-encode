@@ -153,8 +153,8 @@ pub fn codeword_info(version: usize, err_correction_level: &ECLevel) -> CodeWord
 
 
 pub fn get_pixel_points(cell: &Cell) -> Vec<(u32, u32, Color)> {
-    let i = (cell.point.0 * 20) as u32;
-    let j = (cell.point.1 * 20) as u32;
+    let i = ((cell.point.0 * 20) as u32) + 80;
+    let j = ((cell.point.1 * 20) as u32) + 80;
     let mut pixels: Vec<(u32, u32, Color)> = vec![];
     for row in i..(i + 20) {
         for col in j..(j + 20) {

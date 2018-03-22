@@ -41,7 +41,17 @@ pub struct QRConfig {
     pub err_correction_level: ECLevel
 }
 
+fn ecc_format(data: u16) -> u16 {
+    let mut format_str = data << 10;
+    let gen_poly = 1335u16;
 
+    while format_str.leading_zeros() <= 5  {
+        let diff = gen_poly.leading_zeros() - format_str.leading_zeros();
+        format_str ^= gen_poly << diff;
+    }
+
+    ((data << 10) | format_str) ^ 21522
+}
 
 fn arrange_group(blocks: &Vec<Buffer>, range: Range<usize>, ecc_blocks: usize) -> Vec<u8> {
     let mut data_section: Vec<u8> = vec![];
@@ -111,6 +121,67 @@ impl QRConfig {
         }
     }
 
+    pub fn encode_format_areas(&self, body: &mut Vec<Cell>, pattern: u8) {
+        let ec_level: u8 = match self.err_correction_level {
+            ECLevel::Low => 1,
+            ECLevel::Medium => 0,
+            ECLevel::Q => 3,
+            _ => 2
+        };
+
+        let data = (ec_level << 3) | pattern;
+        let format_str = ecc_format(data as u16);
+
+        println!("result: {:b} ", format_str);
+        let mut bit_position = 14;
+
+        let mut x = 8;
+        let mut y = 0;
+
+        while y != self.size {
+            let bit = format_str & (1 << bit_position);
+            let color: Color = if bit == 0 {
+                Color { r: 255, g: 255, b: 255 }
+            } else {
+                Color { r: 0, g: 0, b: 0 }
+            };
+
+            let idx = (x * self.size) + y;
+            let cell = body.get_mut(idx).unwrap();
+            match cell.module_type {
+                CellType::Format => cell.color = color,
+                CellType::Timing => {
+                    if x == 8 {
+                        y += 1;
+                    } else {
+                        x -= 1;
+                    }
+                    continue;
+                },
+                CellType::DarkModule => {
+                    x = 8;
+                    y = self.size - 8;
+                    continue;
+                }
+                _ => panic!("What is this? {:?}", cell)
+            }
+
+            if x == 8 && (y < 8 || y >= self.size - 8) {
+                y += 1;
+            } else if y == 8 && x > 0 {
+                x -= 1;
+            } else if x == 0 && y == 8 {
+                x = self.size - 1;
+            }
+
+            if bit_position == 0 {
+                bit_position = 14;
+            } else {
+                bit_position -= 1;
+            }
+        }
+    }
+
     pub fn apply_mask_pattern(&self, body: &mut Vec<Cell>, n: usize) {
         let pattern = self.get_mask_pattern(n);
 
@@ -135,11 +206,11 @@ impl QRConfig {
         let three = self.penalty_score_eval_three(body);
         let four = self.penalty_score_eval_four(body);
         let total = one + two + three + four;
-        println!("1: {}", one);
-        println!("2: {}", two);
-        println!("3: {}", three);
-        println!("4: {}", four);
-        println!("total: {}", total);
+        // println!("1: {}", one);
+        // println!("2: {}", two);
+        // println!("3: {}", three);
+        // println!("4: {}", four);
+        // println!("total: {}", total);
 
         total
     }
@@ -325,8 +396,6 @@ impl QRConfig {
         } else {
             (next_div * 10) as usize
         }
-
-
     }
 
     pub fn verify_version(&mut self) {
@@ -370,6 +439,7 @@ impl QRConfig {
 
         {
             let (first, second) = data_codewords.split_at(group_one_total_data * group_one_blocks);
+            println!("second: {:?}", first);
             for block in first.chunks(group_one_total_data) {
                 let buffer = encoder.encode(block);
                 group_one_data.push(buffer);
@@ -402,12 +472,17 @@ impl QRConfig {
         // let content_length = self.get_content_length() as u16;
         let encoding = self.encoding;
         let copied_data = self.data.clone();
-        println!("data_cw_length: {} data_length: {}", data_cw_length, data_length);
+        println!("data_cw_length: {} data_length: {:08b}, encoding: {:08b}", data_cw_length, data_length, encoding);
 
         {
             let codewords = &mut self.codewords;
             let mut first_byte = encoding << 4;
-            let mut second_byte = data_cw_length as u8;
+            println!("First Byte: {:08b}", first_byte);
+            let mut second_byte = data_length as u8;
+            println!("Second Byte: {:08b}", second_byte);
+
+            println!("After Pushing: {:08b}", first_byte | (second_byte >> 4));
+
             let mut index = 0;
 
             loop {
@@ -443,6 +518,9 @@ impl QRConfig {
         println!("THIS IS HOW MANY PADDED BYTES ARE ADDED BEFORE INTERLEAVING {}", n);
 
         println!("after translate {}", self.codewords.len());
+        for (idx, cw) in self.codewords.iter().enumerate() {
+            println!("Codeword {}:  {:08b}", idx, cw);
+        }
     }
 
     pub fn create_body(&self) -> Vec<Cell> {
@@ -559,7 +637,7 @@ impl QRConfig {
         match body.get_mut(idx) {
             Some(cell) => {
                 cell.module_type = CellType::DarkModule;
-                cell.color = Color { r: 10, g: 140, b: 230 };
+                cell.color = Color { r: 0, g: 0, b: 0 };
             },
             None => {}
         }
@@ -658,7 +736,7 @@ impl QRConfig {
             match body.get_mut(idx) {
                 Some(cell) => {
                     match cell.module_type {
-                        CellType::None => {
+                        CellType::None | CellType::Format => {
                             let direction = if y > x {
                                 y
                             } else {

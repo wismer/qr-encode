@@ -184,16 +184,13 @@ impl Cursor {
         let timing = self.context.timing;
         let row = idx / canvas_size;
         let free = self.context.free;
-        if canvas_size > 43 && row == 5 {
+
+        if canvas_size > 43 && row == 5 || timing == BOTTOM {
             return (canvas_size * 2) + 1
         }
 
-        if off == TOP && timing & LEFT > 0 {
+        if off == TOP && timing == LEFT {
             return -2
-        }
-
-        if off == LEFT && timing & BOTTOM > 0 && free == 0 {
-            return (canvas_size * 2) + 1
         }
 
         -1 // I think?
