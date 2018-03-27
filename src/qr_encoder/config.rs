@@ -9,7 +9,7 @@ use qr_encoder::cell::{
     Color,
     PlotPoint
 };
-use qr_encoder::util::{CodeWord};
+use qr_encoder::util::{CodeWord, BlockContent};
 
 
 pub enum ECLevel {
@@ -53,6 +53,8 @@ fn ecc_format(data: u16) -> u16 {
     ((data << 10) | format_str) ^ 21522
 }
 
+// NOTE FOR MATT FOR TOMORROW ABOUT ISSUE WITH VERSIONS 4, 5 and 6 NOT WORKING -> CHECK THE ERROR ENCODING PROCESS FOR GROUPS THE ISSUE MIGHT BE THERE!
+
 fn arrange_group(blocks: &Vec<Buffer>, range: Range<usize>, ecc_blocks: usize) -> Vec<u8> {
     let mut data_section: Vec<u8> = vec![];
 
@@ -60,20 +62,23 @@ fn arrange_group(blocks: &Vec<Buffer>, range: Range<usize>, ecc_blocks: usize) -
         for block in blocks {
             if let Some(cw) = block.get_data_cw(i) {
                 data_section.push(cw);
+            } else {
+                panic!("ADLKJSDLFKJD {}", i);
             }
         }
     }
+
     let mut n = 0;
     for i in 0..ecc_blocks {
         for block in blocks {
             if let Some(cw) = block.get_ecc(i) {
                 n += 1;
                 data_section.push(cw);
+            } else {
+                panic!("ADLKJSDLFKJD ECC {}", i);
             }
         }
     }
-
-    println!("This is how many times error corrections were made {} from buffer length of {}", n, blocks.len());
 
     data_section
 }
@@ -106,6 +111,14 @@ impl BufferState for Buffer {
 impl QRConfig {
     pub fn get_ecc_length(&self) -> usize {
         self.codeword_properties.ecc_codeword_count
+    }
+
+    pub fn get_remainder_bit_length(&self) -> usize {
+        match self.version {
+            2...6 => 7,
+            14...20 | 28...34 => 3,
+            _ => 0
+        }
     }
 
     pub fn get_mask_pattern(&self, n: usize) -> Box<Fn(usize, usize) -> bool> {
@@ -428,39 +441,34 @@ impl QRConfig {
 
     pub fn encode_error_correction_codewords(&mut self) {
         let ecc_len = self.codeword_properties.ecc_codeword_count;
-        let encoder = Encoder::new(ecc_len);
-        let (group_one_total_data, group_two_total_data) = self.codeword_properties.get_data_cw_total_for_groups();
-        let (group_one_blocks, _group_two_blocks) = self.codeword_properties.get_block_count_for_groups();
+        let ecc_per_block = ecc_len / self.codeword_properties.block_count;
+        let encoder = Encoder::new(ecc_per_block);
+        let (group_one, group_two) = self.codeword_properties.get_data_cw_total_for_groups();
         let data_codewords = &mut self.codewords;
+        let mid_point = group_one.blocks * group_one.codewords_per_block;
 
-        let mut group_one_data: Vec<Buffer> = vec![];
-        let mut group_two_data: Vec<Buffer> = vec![];
+        let mut group_one_buffer: Vec<Buffer> = vec![];
+        let mut group_two_buffer: Vec<Buffer> = vec![];
         let mut data_section: Vec<u8> = vec![];
-
         {
-            let (first, second) = data_codewords.split_at(group_one_total_data * group_one_blocks);
-            println!("second: {:?}", first);
-            for block in first.chunks(group_one_total_data) {
-                let buffer = encoder.encode(block);
-                group_one_data.push(buffer);
+            let (first_group_data, second_group_data) = data_codewords.split_at(mid_point);
+            for data_block in first_group_data.chunks(group_one.codewords_per_block) {
+                let buffer = encoder.encode(data_block);
+                group_one_buffer.push(buffer);
             }
+            let mut first_group = arrange_group(&group_one_buffer, 0..group_one.codewords_per_block, ecc_per_block);
 
-            let ecc_per_block = ecc_len / self.codeword_properties.block_count;
-            let mut first_group = arrange_group(&group_one_data, 0..group_one_total_data, ecc_per_block);
             data_section.append(&mut first_group);
 
-            if group_two_total_data > 0 {
-                for block in second.chunks(group_two_total_data) {
-                    let buffer = encoder.encode(block);
-                    group_two_data.push(buffer);
+            if group_two.blocks > 0 {
+                for data_block in second_group_data.chunks(group_two.codewords_per_block) {
+                    let buffer = encoder.encode(data_block);
+                    group_two_buffer.push(buffer);
                 }
-                let mut second_group = arrange_group(&group_two_data, 0..group_two_total_data, ecc_per_block);
-                data_section.append(&mut second_group);
+                let mut second_group = arrange_group(&group_two_buffer, 0..(second_group_data.len()), ecc_per_block);
+                data_section.append(&mut second_group);                
             }
         }
-
-        println!("PROPERTIES: {:?}", self.codeword_properties);
-        println!("CONTENT LENGTH: {}", data_section.len());
 
         *data_codewords = data_section;
     }
@@ -764,12 +772,12 @@ impl QRConfig {
     }
 
     pub fn get_alignment_points(&self, body: &Vec<Cell>) -> Vec<PlotPoint> {
-        let mut pts: Vec<usize> = vec![];
+        let mut pts: Vec<usize> = vec![6];
         let mut n = 6;
         // let last_column = self.size - 7;
         let version_bracket = match self.version {
             1 => 0,
-            2...7 => 1,
+            2...6 => 1,
             7...13 => 2,
             14...21 => 3,
             22...28 => 4,
@@ -778,11 +786,21 @@ impl QRConfig {
             _ => 0
         };
 
-        let modifier = (self.size - 12) / version_bracket;
-        while n <= self.size - 7 {
-            pts.push(n);
+
+
+        let modifier = if version_bracket == 1 {
+            self.size - 13
+        } else {
+            (self.size - 12) / version_bracket
+        };
+
+        for _ in 0..version_bracket {
             n += modifier;
+            pts.push(n);
         }
+        println!("AlginmentPoints Stuff: bracket: {}, modifier: {}, pts : \n{:?}", version_bracket, modifier, pts);
+
+
 
 
         let pts: Vec<PlotPoint> = self.get_point_combinations(pts)

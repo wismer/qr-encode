@@ -189,7 +189,7 @@ impl Cursor {
             return (canvas_size * 2) + 1
         }
 
-        if off == TOP && timing == LEFT {
+        if off > 0 && timing == LEFT {
             return -2
         }
 

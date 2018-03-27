@@ -80,6 +80,9 @@ fn main() {
         for byte in data.iter() {
             qr.encode_chunk(&byte, 8, &config);
         }
+
+        let remainder_bits = &config.get_remainder_bit_length();
+        qr.encode_chunk(&0, *remainder_bits, &config);
     }
 
     {

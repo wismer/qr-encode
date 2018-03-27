@@ -114,6 +114,12 @@ const EC_CODEWORD_TABLE: [ECCodeWordCount; 40] = [
     ECCodeWordCount(750, 1372, 2040, 2430)
 ];
 
+#[derive(Debug, Clone)]
+pub struct BlockContent {
+    pub blocks: usize,
+    pub codewords_per_block: usize
+}
+
 impl CodeWord {
     pub fn get_data_codeword_length(&self) -> usize {
         self.capacity - self.ecc_codeword_count
@@ -126,9 +132,24 @@ impl CodeWord {
         (group_one, group_two)
     }
 
-    pub fn get_data_cw_total_for_groups(&self) -> (usize, usize) {
-        let subtotal = (self.capacity - self.ecc_codeword_count) / self.block_count;
-        (subtotal, subtotal + 1)
+    pub fn get_data_cw_total_for_groups(&self) -> (BlockContent, BlockContent) {
+        // the purpose of this function is to....
+        // 1. convey the number of blocks in group one and two
+        // 2. the number of codewords that each block would contain
+
+        let (group_one_blocks, group_two_blocks) = self.get_block_count_for_groups();
+        let capacity = self.capacity - self.ecc_codeword_count;
+        let group_one_capacity = capacity / self.block_count;
+        let group_two_capacity = if group_two_blocks > 0 {
+            (capacity - group_one_capacity) / group_two_blocks
+        } else {
+            0
+        };
+
+        (
+            BlockContent { blocks: group_one_blocks, codewords_per_block: group_one_capacity },
+            BlockContent { blocks: group_two_blocks, codewords_per_block: group_two_capacity }
+        )
     }
 }
 
