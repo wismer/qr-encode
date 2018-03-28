@@ -1,6 +1,10 @@
 extern crate reed_solomon;
-use std::ops::Range;
+extern crate num;
+
+use std::ops::{Range, BitXorAssign};
+use std::fmt::{Binary, Debug};
 use self::reed_solomon::{Encoder, Buffer};
+use self::num::PrimInt;
 
 use qr_encoder::cell::{
     Cell,
@@ -9,7 +13,7 @@ use qr_encoder::cell::{
     Color,
     PlotPoint
 };
-use qr_encoder::util::{CodeWord, BlockContent};
+use qr_encoder::util::{CodeWord, get_indices_for_dimensions};
 
 
 pub enum ECLevel {
@@ -41,16 +45,30 @@ pub struct QRConfig {
     pub err_correction_level: ECLevel
 }
 
-fn ecc_format(data: u16) -> u16 {
-    let mut format_str = data << 10;
-    let gen_poly = 1335u16;
+const ECC_FORMAT_MASK: u16 = 21522;
+const GEN_POLY_VERSION: u32 = 7973;
+const GEN_POLY_FORMAT: u16 = 1335;
 
-    while format_str.leading_zeros() <= 5  {
+fn ecc_format<T: PrimInt + Binary + Debug + BitXorAssign<T>>(data: T, gen_poly: T, gen_mask: Option<T>) -> T {
+    let (limit, mut format_str) = if gen_mask.is_some() {
+        (5, data << 10)
+    } else {
+        (20, data << 12)
+    };
+
+    println!("ARGUMENTS: data {:032b}, gen_poly {:?}, gen_mask: {:?} - values: {:?}, leading_zeros {}", format_str, gen_poly, gen_mask, limit, format_str.leading_zeros());
+    println!("gen_poly: {}", gen_poly.leading_zeros());
+    while format_str.leading_zeros() <= limit {
         let diff = gen_poly.leading_zeros() - format_str.leading_zeros();
-        format_str ^= gen_poly << diff;
+        format_str ^= gen_poly << diff as usize;
     }
+    
+    println!("format_str: {:032b}", format_str);
 
-    ((data << 10) | format_str) ^ 21522
+    match gen_mask {
+        Some(mask) => ((data << 10) | format_str) ^ mask,
+        None => (data << 12) | format_str
+    }
 }
 
 // NOTE FOR MATT FOR TOMORROW ABOUT ISSUE WITH VERSIONS 4, 5 and 6 NOT WORKING -> CHECK THE ERROR ENCODING PROCESS FOR GROUPS THE ISSUE MIGHT BE THERE!
@@ -68,11 +86,9 @@ fn arrange_group(blocks: &Vec<Buffer>, range: Range<usize>, ecc_blocks: usize) -
         }
     }
 
-    let mut n = 0;
     for i in 0..ecc_blocks {
         for block in blocks {
             if let Some(cw) = block.get_ecc(i) {
-                n += 1;
                 data_section.push(cw);
             } else {
                 panic!("ADLKJSDLFKJD ECC {}", i);
@@ -134,6 +150,40 @@ impl QRConfig {
         }
     }
 
+    pub fn apply_version_information(&self, body: &mut Vec<Cell>) {
+        let origin = self.size - 11;
+        let bit_string = ecc_format::<u32>(self.version as u32, GEN_POLY_VERSION, None);
+        let upper_right_indices = get_indices_for_dimensions((5, 2), origin, self.size);
+        let lower_left_indices = get_indices_for_dimensions((2, 5), self.size * origin, self.size);
+
+        for (bit_index, idx) in lower_left_indices.iter().enumerate() {
+            let is_bit = ((bit_string >> bit_index) & 1) == 1;
+            let color: Color = if is_bit {
+                Color { r: 255, b: 255, g: 255 }
+            } else {
+                Color { r: 0, b: 0, g: 0 }
+            };
+
+            match body.get_mut(*idx) {
+                Some(c) => c.color = color,
+                None => {}
+            }
+        }
+
+        for (bit_index, idx) in upper_right_indices.iter().enumerate() {
+            let is_bit = ((bit_string >> bit_index) & 1) == 1;
+            let color: Color = if is_bit {
+                Color { r: 255, b: 255, g: 255 }
+            } else {
+                Color { r: 0, b: 0, g: 0 }
+            };
+            match body.get_mut(*idx) {
+                Some(c) => c.color = color,
+                None => {}
+            }
+        }
+    }
+
     pub fn encode_format_areas(&self, body: &mut Vec<Cell>, pattern: u8) {
         let ec_level: u8 = match self.err_correction_level {
             ECLevel::Low => 1,
@@ -143,7 +193,7 @@ impl QRConfig {
         };
 
         let data = (ec_level << 3) | pattern;
-        let format_str = ecc_format(data as u16);
+        let format_str = ecc_format::<u16>(data as u16, GEN_POLY_FORMAT, Some(ECC_FORMAT_MASK));
 
         println!("result: {:b} ", format_str);
         let mut bit_position = 14;
@@ -466,7 +516,7 @@ impl QRConfig {
                     group_two_buffer.push(buffer);
                 }
                 let mut second_group = arrange_group(&group_two_buffer, 0..(second_group_data.len()), ecc_per_block);
-                data_section.append(&mut second_group);                
+                data_section.append(&mut second_group);
             }
         }
 

@@ -100,9 +100,13 @@ fn main() {
         }
 
         config.apply_mask_pattern(body, best_pattern);
-        println!("Best Pattern: {} score: {}", best_pattern, best);
-
         config.encode_format_areas(body, best_pattern as u8);
+        
+        if config.version >= 7 {
+            config.apply_version_information(body);
+        }
+
+
     }
 
 

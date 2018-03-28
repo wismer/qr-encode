@@ -328,3 +328,25 @@ pub fn args() -> QRConfig {
         ]
     }
 }
+
+pub fn get_indices_for_dimensions(dimension: (usize, usize), start: usize, canvas_size: usize) -> Vec<usize> {
+    let (height, width) = dimension;
+    let (mut x, mut y) = (start / canvas_size, start % canvas_size);
+    let (start_x, start_y) = (x, y);
+    let (end_x, end_y) = (x + height, y + width);
+    let mut indices: Vec<usize> = vec![];
+
+    while x <= end_x && y <= end_y {
+        let idx = (x * canvas_size) + y;
+        indices.push(idx);
+        
+        if y == start_y + width {
+            x += 1;
+            y = start_y;
+        } else {
+            y += 1;
+        }
+    }
+
+    indices
+}
