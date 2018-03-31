@@ -65,50 +65,8 @@ fn main() {
         },
     };
 
-    config.verify_version(); // TODO
-    config.translate_data();
-
-    {
-        let c = &mut config;
-        c.encode_error_correction_codewords();
-    }
-
-    qr.setup(&config);
-
-    {
-        let data = &config.codewords[..];
-        for byte in data.iter() {
-            qr.encode_chunk(&byte, 8, &config);
-        }
-
-        let remainder_bits = &config.get_remainder_bit_length();
-        qr.encode_chunk(&0, *remainder_bits, &config);
-    }
-
-    {
-        let body = &mut qr.body;
-        let mut best = 0;
-        let mut best_pattern = 0;
-        for pattern in 0..7 {
-            let mut copy = &mut body.clone();
-            config.apply_mask_pattern(&mut copy, pattern);
-            let score = config.eval_penalty_scores(copy);
-            if best == 0 || score < best {
-                best = score;
-                best_pattern = pattern;
-            }
-        }
-
-        config.apply_mask_pattern(body, best_pattern);
-        config.encode_format_areas(body, best_pattern as u8);
-        
-        if config.version >= 7 {
-            config.apply_version_information(body);
-        }
-
-
-    }
-
+    qr.setup(&mut config);
+    qr.encode_data(&config);
 
     create_qr_image(&qr, &config);
 }

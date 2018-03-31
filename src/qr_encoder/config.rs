@@ -6,6 +6,7 @@ use std::fmt::{Binary, Debug};
 use self::reed_solomon::{Encoder, Buffer};
 use self::num::PrimInt;
 
+
 use qr_encoder::cell::{
     Cell,
     Point,
@@ -23,11 +24,12 @@ pub enum ECLevel {
     High,
 }
 
+#[derive(Debug)]
 pub enum EncodingMode {
     Numeric,
     AlphaNumeric,
     Byte,
-    Japanese
+    Kanji
 }
 
 pub struct QRConfig {
@@ -36,7 +38,6 @@ pub struct QRConfig {
     pub codewords: Vec<u8>,
     pub codeword_properties: CodeWord,
     pub mask: usize,
-    pub encoding: u8, // for now - should be its own sub-type.
     pub encoding_mode: EncodingMode,
     pub debug_mode: bool,
     pub requires_alignment: bool,
@@ -475,7 +476,6 @@ impl QRConfig {
 
     pub fn verify_version(&mut self) {
         // TODO!
-        // let content_length = self.get_content_length();
         // println!("{:?} CL: {}", self.codeword_properties, content_length);
         // let data_length = self.data.len();
 
@@ -535,14 +535,21 @@ impl QRConfig {
         *data_codewords = data_section;
     }
 
+    pub fn get_encoding_mode_byte(&self) -> u8 {
+        match self.encoding_mode {
+            EncodingMode::Numeric => 1,
+            EncodingMode::AlphaNumeric => 2,
+            EncodingMode::Byte => 5,
+            EncodingMode::Kanji => 8
+        }
+    }
+
 
     pub fn translate_data(&mut self) {
         let data_cw_length = self.codeword_properties.get_data_codeword_length();
         let data_length = self.data.len() as u8;
-        // let content_length = self.get_content_length() as u16;
-        let encoding = self.encoding;
+        let encoding = self.get_encoding_mode_byte();
         let copied_data = self.data.clone();
-        println!("data_cw_length: {} data_length: {:08b}, encoding: {:08b}", data_cw_length, data_length, encoding);
 
         {
             let codewords = &mut self.codewords;
@@ -609,26 +616,6 @@ impl QRConfig {
             }
         }
         rows
-    }
-
-    pub fn get_content_length(&self) -> usize {
-        let modifier = match self.version {
-            1...10 => 0,
-            11...27 => 2,
-            _ => 4
-        };
-        match self.encoding {
-            1 => 10 + modifier,
-            2 => 9 + modifier,
-            8 => 12 + modifier,
-            _ => {
-                if self.version < 10 {
-                    8
-                } else {
-                    16
-                }
-            }
-        }
     }
 
     pub fn apply_version_information_areas(&self, body: &mut Vec<Cell>) {

@@ -1,5 +1,50 @@
+#![allow(dead_code)]
+
 pub mod qr_encoder;
 
+use qr_encoder::util::{codeword_info, square_count};
+use qr_encoder::config::{ECLevel, QRConfig, EncodingMode, ecc_format};
+use qr_encoder::cursor::{QRContext, Cursor};
+use qr_encoder::cell::CellType;
+use qr_encoder::qr::QR;
+
+
+fn qr_config_with_general_opts(version: usize, ec_level: ECLevel, encoding_mode: EncodingMode, message: Vec<u8>) -> QRConfig {
+    QRConfig {
+        version: version,
+        data: message,
+        codewords: vec![],
+        codeword_properties: codeword_info(version, &ec_level),
+        mask: 4,
+        encoding_mode: encoding_mode,
+        debug_mode: false,
+        requires_alignment: version > 6,
+        finder_points: [
+            (0, 0),
+            ((square_count(version) - 7), 0),
+            (0, (square_count(version) - 7))
+        ],
+        size: (((version - 1) * 4) + 21),
+        err_correction_level: ec_level
+    }
+}
+
+fn create_qr(config: &QRConfig) -> QR {
+    QR {
+        body: config.create_body(),
+        cursor: Cursor {
+            context: QRContext {
+                free: 0,
+                algn: 0,
+                timing: 0,
+                off: 0,
+                msg: 0
+            },
+            drawn_path: vec![8; 0],
+            current_index: config.size * config.size - 1
+        },
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -33,5 +78,49 @@ mod tests {
         actual_outcome = ecc_format::<u32>(version, gen_poly, None);
 
         assert_eq!(expected_outcome, actual_outcome);
+
+    #[test]
+    fn test_ecc_format() {
+        use super::*;
+
+
+        let message = String::from("Hello, World!").into_bytes();
+        let mut qr_opts = qr_config_with_general_opts(7, ECLevel::Low, EncodingMode::Byte, message);
+        let mut qr = create_qr(&qr_opts);
+        qr.setup(&mut qr_opts);
+        qr.encode_data(&qr_opts);
+        qr_opts.encode_format_areas(&mut qr.body, 4u8);
+
+        // assert_eq!(4, qr_opts.mask);
+        let mut index = qr_opts.size * 8;
+        let mut actual_format_bytestring = 0;
+        let expected_format_bytestring = 0b110011000101111;
+        let mut pos = 14;
+
+        while index >= 8 {
+
+            let cell = &qr.body[index];
+            match cell.module_type {
+                CellType::Format => {
+                    if cell.is_black() {
+                        actual_format_bytestring |= (1 << pos);   
+                    }
+                    pos -= 1;
+                },
+                _ => {}
+            }
+
+            if index == 8 {
+                break;
+            }
+
+            if index % qr_opts.size == 8 {
+                index -= qr_opts.size;
+            } else {
+                index += 1;
+            }
+        }
+        
+        assert_eq!(expected_format_bytestring, actual_format_bytestring);
     }
 }

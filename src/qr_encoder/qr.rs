@@ -149,7 +149,10 @@ impl QR {
         }
     }
 
-    pub fn setup(&mut self, config: &QRConfig) {
+    pub fn setup(&mut self, config: &mut QRConfig) {
+        config.translate_data(); // interleaves data if necessary
+        config.encode_error_correction_codewords();
+
         for alignment_point in config.finder_points.iter() {
             let point = Point(alignment_point.0, alignment_point.1);
             config.apply_finder_patterns(&mut self.body, point);
@@ -173,5 +176,40 @@ impl QR {
 
         println!("LENGTH IS {}, SIZE IS {}, VERSION: {}", self.body.len(), config.size, config.version);
         println!("--- QR ENCODER READY FOR ENCODING ---");
+    }
+
+    pub fn encode_data(&mut self, config: &QRConfig) {
+        {
+            let data = &config.codewords[..];
+            for byte in data.iter() {
+                self.encode_chunk(&byte, 8, config);
+            }
+
+            let remainder_bits = &config.get_remainder_bit_length();
+            self.encode_chunk(&0, *remainder_bits, config);
+        }
+
+        {
+            let best_pattern = self.get_best_mask_pattern(&config);
+            config.apply_mask_pattern(&mut self.body, best_pattern);
+            config.encode_format_areas(&mut self.body, best_pattern as u8);
+        }
+    }
+
+    fn get_best_mask_pattern(&self, config: &QRConfig) -> usize {
+        let body = &self.body;
+        let mut best = 0;
+        let mut best_pattern = 0;
+        for pattern in 0..7 {
+            let mut copy = &mut body.clone();
+            config.apply_mask_pattern(&mut copy, pattern);
+            let score = config.eval_penalty_scores(copy);
+            if best == 0 || score < best {
+                best = score;
+                best_pattern = pattern;
+            }
+        }
+
+        best_pattern
     }
 }

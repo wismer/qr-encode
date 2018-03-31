@@ -217,27 +217,6 @@ pub fn set_color(index: usize) -> Color {
         _ => Color { r: 255, g: 255, b: 0 }
     }
 }
-//
-// fn get_content_length(mode: u8, version: usize) -> usize {
-//     let modifier = match version {
-//         1...10 => 0,
-//         11...27 => 2,
-//         _ => 4
-//     };
-//
-//     match mode {
-//         1 => 10 + modifier,
-//         2 => 9 + modifier,
-//         8 => 12 + modifier,
-//         _ => {
-//             if version < 10 {
-//                 8
-//             } else {
-//                 16
-//             }
-//         }
-//     }
-// }
 
 fn get_ec_level(level: &str) -> ECLevel {
     match level {
@@ -315,7 +294,6 @@ pub fn args() -> QRConfig {
         codewords: vec![],
         codeword_properties: codeword_properties,
         mask: 1,
-        encoding: 4u8,
         encoding_mode: EncodingMode::Byte,
         debug_mode: debug_mode,
         requires_alignment: version > 1,
