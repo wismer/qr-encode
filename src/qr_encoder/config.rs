@@ -149,31 +149,18 @@ impl QRConfig {
     }
 
     pub fn apply_version_information(&self, body: &mut Vec<Cell>) {
-        let origin = self.size - 11;
+        let canvas_size = self.size as isize;
+        let origin = (canvas_size - 12) as isize;
         let bit_string = ecc_format::<u32>(self.version as u32, GEN_POLY_VERSION, None);
-        let upper_right_indices = get_indices_for_dimensions((5, 2), origin, self.size);
-        let lower_left_indices = get_indices_for_dimensions((2, 5), self.size * origin, self.size);
+        let upper_right_indices = get_indices_for_dimensions(origin, 1, canvas_size - 3);
+        let lower_left_indices = get_indices_for_dimensions(origin * canvas_size, canvas_size, (-canvas_size * 3) + 1);
 
-        let mut threshold = 3;
-        let mut threshold_modifier = 1;
-        let mut modifier = self.size;
-        let mut index = (self.size * origin) - self.size;
-        let mut indices: Vec<usize> = vec![];
-        for _ in 0..18 {
-            index += self.size;            
-            indices.push(index);
-
-            if indices.len() % 3 == 0 {
-                index -= (self.size * 3) - 1;
-            }
-        }
-
-        for (bit_pos, i) in indices.iter().enumerate() {
-            let is_bit = ((bit_string >> bit_pos) & 1) == 0;
+        for (bit_pos, i) in upper_right_indices.iter().enumerate() {
+            let is_bit = ((bit_string >> bit_pos) & 1) > 0;
             let color: Color = if is_bit {
-                Color { r: 255, b: 255, g: 255 }
-            } else {
                 Color { r: 0, b: 0, g: 0 }
+            } else {
+                Color { r: 255, b: 255, g: 255 }
             };
 
             match body.get_mut(*i) {
@@ -182,12 +169,12 @@ impl QRConfig {
             }
         }
 
-        for (bit_index, idx) in upper_right_indices.iter().enumerate() {
-            let is_bit = (bit_string & (1 << bit_index)) == 0;
+        for (bit_index, idx) in lower_left_indices.iter().enumerate() {
+            let is_bit = (bit_string & (1 << bit_index)) > 0;
             let color: Color = if is_bit {
-                Color { r: 255, b: 255, g: 255 }
-            } else {
                 Color { r: 0, b: 0, g: 0 }
+            } else {
+                Color { r: 255, b: 255, g: 255 }
             };
             match body.get_mut(*idx) {
                 Some(c) => c.color = color,

@@ -329,15 +329,27 @@ pub fn args() -> QRConfig {
     }
 }
 
-pub fn get_indices_for_dimensions(start: usize, threshold: usize, canvas_size: usize) -> Vec<usize> {
+// Gets the index values for the version information.
+// Might be useful for other parts of the QR canvas in a future refactor. 
+// Upper right version follows the pattern of left-to-right travelling on rows.
+// Lower left version goes top-to-bottom travelling on columns (l-r)
+// the thing I need to determine is that both areas traverse 3 places before making a row or column change,
+// so is there some kind of "threshold" that would signal that it's time to "reset"
+// One thing that is definitely constant is "every three steps, reset, but advance by X. So what is X?"
+//  Lower Left:  reset value = index - (canvas_size * 3) + 1
+//  Upper RIght: reset value = index + canvas_size - 2
+pub fn get_indices_for_dimensions(start: isize, step: isize, step_modifier: isize) -> Vec<usize> {
+    let mut index = start;
     let mut indices: Vec<usize> = vec![];
 
     for _ in 0..18 {
-        index += canvas_size;            
-        indices.push(index);
+        index += step;
+        indices.push(index as usize);
 
-        if indices.len() % threshold == 0 {
-            index -= (self.size * 3) - 1;
+        if indices.len() % 3 == 0 {
+            index += step_modifier;
         }
     }
+
+    indices
 }
