@@ -328,3 +328,16 @@ pub fn args() -> QRConfig {
         ]
     }
 }
+
+pub fn get_indices_for_dimensions(start: usize, threshold: usize, canvas_size: usize) -> Vec<usize> {
+    let mut indices: Vec<usize> = vec![];
+
+    for _ in 0..18 {
+        index += canvas_size;            
+        indices.push(index);
+
+        if indices.len() % threshold == 0 {
+            index -= (self.size * 3) - 1;
+        }
+    }
+}
