@@ -49,21 +49,19 @@ const ECC_FORMAT_MASK: u16 = 21522;
 const GEN_POLY_VERSION: u32 = 7973;
 const GEN_POLY_FORMAT: u16 = 1335;
 
-fn ecc_format<T: PrimInt + Binary + Debug + BitXorAssign<T>>(data: T, gen_poly: T, gen_mask: Option<T>) -> T {
+
+pub fn ecc_format<T>(data: T, gen_poly: T, gen_mask: Option<T>) -> T where 
+    T: PrimInt + Binary + Debug + BitXorAssign<T> {
     let (limit, mut format_str) = if gen_mask.is_some() {
         (5, data << 10)
     } else {
-        (20, data << 12)
+        (18, data << 12)
     };
 
-    println!("ARGUMENTS: data {:032b}, gen_poly {:?}, gen_mask: {:?} - values: {:?}, leading_zeros {}", format_str, gen_poly, gen_mask, limit, format_str.leading_zeros());
-    println!("gen_poly: {}", gen_poly.leading_zeros());
     while format_str.leading_zeros() <= limit {
         let diff = gen_poly.leading_zeros() - format_str.leading_zeros();
         format_str ^= gen_poly << diff as usize;
     }
-    
-    println!("format_str: {:032b}", format_str);
 
     match gen_mask {
         Some(mask) => ((data << 10) | format_str) ^ mask,
@@ -156,22 +154,36 @@ impl QRConfig {
         let upper_right_indices = get_indices_for_dimensions((5, 2), origin, self.size);
         let lower_left_indices = get_indices_for_dimensions((2, 5), self.size * origin, self.size);
 
-        for (bit_index, idx) in lower_left_indices.iter().enumerate() {
-            let is_bit = ((bit_string >> bit_index) & 1) == 1;
+        let mut threshold = 3;
+        let mut threshold_modifier = 1;
+        let mut modifier = self.size;
+        let mut index = (self.size * origin) - self.size;
+        let mut indices: Vec<usize> = vec![];
+        for _ in 0..18 {
+            index += self.size;            
+            indices.push(index);
+
+            if indices.len() % 3 == 0 {
+                index -= (self.size * 3) - 1;
+            }
+        }
+
+        for (bit_pos, i) in indices.iter().enumerate() {
+            let is_bit = ((bit_string >> bit_pos) & 1) == 0;
             let color: Color = if is_bit {
                 Color { r: 255, b: 255, g: 255 }
             } else {
                 Color { r: 0, b: 0, g: 0 }
             };
 
-            match body.get_mut(*idx) {
+            match body.get_mut(*i) {
                 Some(c) => c.color = color,
                 None => {}
             }
         }
 
         for (bit_index, idx) in upper_right_indices.iter().enumerate() {
-            let is_bit = ((bit_string >> bit_index) & 1) == 1;
+            let is_bit = (bit_string & (1 << bit_index)) == 0;
             let color: Color = if is_bit {
                 Color { r: 255, b: 255, g: 255 }
             } else {
