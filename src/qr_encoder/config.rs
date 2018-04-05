@@ -71,54 +71,30 @@ pub fn ecc_format<T>(data: T, gen_poly: T, gen_mask: Option<T>) -> T where
 
 // NOTE FOR MATT FOR TOMORROW ABOUT ISSUE WITH VERSIONS 4, 5 and 6 NOT WORKING -> CHECK THE ERROR ENCODING PROCESS FOR GROUPS THE ISSUE MIGHT BE THERE!
 
-fn arrange_group(blocks: &Vec<Buffer>, range: Range<usize>, ecc_blocks: usize) -> Vec<u8> {
-    let mut data_section: Vec<u8> = vec![];
-
-    for i in range {
+fn interleave_blocks(blocks: &[Buffer], block_size: usize, ecc_block_size: usize) -> Vec<u8> {
+    let mut data: Vec<u8> = vec![];
+    println!("block_size: {}, blocks: {}, ecc_block: {}", block_size, blocks.len(), ecc_block_size);
+    for i in 0..block_size {
         for block in blocks {
-            if let Some(cw) = block.get_data_cw(i) {
-                data_section.push(cw);
+            if let Some(cw) = block.data().get(i) {
+                data.push(*cw);
             } else {
-                panic!("ADLKJSDLFKJD {}", i);
+                // panic!("ADLKJSDLFKJD ECC {}", i);
             }
         }
     }
 
-    for i in 0..ecc_blocks {
+    for i in 0..ecc_block_size {
         for block in blocks {
-            if let Some(cw) = block.get_ecc(i) {
-                data_section.push(cw);
+            if let Some(cw) = block.ecc().get(i) {
+                data.push(*cw);
             } else {
                 panic!("ADLKJSDLFKJD ECC {}", i);
             }
         }
     }
 
-    data_section
-}
-
-trait BufferState {
-    fn get_data_cw(&self, idx: usize) -> Option<u8>;
-    fn get_ecc(&self, idx: usize) -> Option<u8>;
-}
-
-impl BufferState for Buffer {
-    fn get_data_cw(&self, idx: usize) -> Option<u8> {
-        if let Some(cw) = self.data().get(idx) {
-            Some(*cw)
-        } else {
-            None
-        }
-    }
-
-    fn get_ecc(&self, idx: usize) -> Option<u8> {
-        if let Some(cw) = self.ecc().get(idx) {
-            Some(*cw)
-        } else {
-            None
-        }
-    }
-
+    data
 }
 
 
@@ -495,28 +471,31 @@ impl QRConfig {
         let (group_one, group_two) = self.codeword_properties.get_data_cw_total_for_groups();
         let data_codewords = &mut self.codewords;
         let mid_point = group_one.blocks * group_one.codewords_per_block;
-
-        let mut group_one_buffer: Vec<Buffer> = vec![];
-        let mut group_two_buffer: Vec<Buffer> = vec![];
+        let mut blocks: Vec<Buffer> = vec![];
         let mut data_section: Vec<u8> = vec![];
+
         {
             let (first_group_data, second_group_data) = data_codewords.split_at(mid_point);
             for data_block in first_group_data.chunks(group_one.codewords_per_block) {
-                let buffer = encoder.encode(data_block);
-                group_one_buffer.push(buffer);
+                let buffer =  encoder.encode(data_block);
+                blocks.push(buffer);
             }
-            let mut first_group = arrange_group(&group_one_buffer, 0..group_one.codewords_per_block, ecc_per_block);
-
-            data_section.append(&mut first_group);
 
             if group_two.blocks > 0 {
                 for data_block in second_group_data.chunks(group_two.codewords_per_block) {
                     let buffer = encoder.encode(data_block);
-                    group_two_buffer.push(buffer);
+                    blocks.push(buffer);
                 }
-                let mut second_group = arrange_group(&group_two_buffer, 0..(second_group_data.len()), ecc_per_block);
-                data_section.append(&mut second_group);
             }
+
+            let codeword_max = if group_one.codewords_per_block > group_two.codewords_per_block {
+                group_one.codewords_per_block
+            } else {
+                group_two.codewords_per_block
+            };
+
+            let mut first_group_interleaved = interleave_blocks(&blocks[..], codeword_max, ecc_per_block);
+            data_section.append(&mut first_group_interleaved);
         }
 
         *data_codewords = data_section;
@@ -529,16 +508,11 @@ impl QRConfig {
         // let content_length = self.get_content_length() as u16;
         let encoding = self.encoding;
         let copied_data = self.data.clone();
-        println!("data_cw_length: {} data_length: {:08b}, encoding: {:08b}", data_cw_length, data_length, encoding);
 
         {
             let codewords = &mut self.codewords;
             let mut first_byte = encoding << 4;
-            println!("First Byte: {:08b}", first_byte);
             let mut second_byte = data_length as u8;
-            println!("Second Byte: {:08b}", second_byte);
-
-            println!("After Pushing: {:08b}", first_byte | (second_byte >> 4));
 
             let mut index = 0;
 
@@ -572,11 +546,13 @@ impl QRConfig {
             swap = !swap;
         }
 
-        println!("THIS IS HOW MANY PADDED BYTES ARE ADDED BEFORE INTERLEAVING {}", n);
+        if self.debug_mode {
+            println!("THIS IS HOW MANY PADDED BYTES ARE ADDED BEFORE INTERLEAVING {}", n);
 
-        println!("after translate {}", self.codewords.len());
-        for (idx, cw) in self.codewords.iter().enumerate() {
-            println!("Codeword {}:  {:08b}", idx, cw);
+            println!("after translate {}", self.codewords.len());
+            for (idx, cw) in self.codewords.iter().enumerate() {
+                println!("Codeword {}:  {:08b}", idx, cw);
+            }
         }
     }
 

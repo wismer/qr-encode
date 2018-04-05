@@ -82,7 +82,9 @@ fn main() {
         }
 
         let remainder_bits = &config.get_remainder_bit_length();
-        qr.encode_chunk(&0, *remainder_bits, &config);
+        if *remainder_bits > 0 {
+            qr.encode_chunk(&0, *remainder_bits, &config);
+        }
     }
 
     {

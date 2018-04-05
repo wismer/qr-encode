@@ -198,7 +198,7 @@ impl Cursor {
 
     fn get_next_position(&self, canvas_size: isize) -> usize {
         let current_index = self.current_index as isize;
-        println!("{} \n with index being {:?} \n {:?}", self.context, (current_index / canvas_size, current_index % (canvas_size)), self.drawn_path);
+        // println!("{} \n with index being {:?} \n {:?}", self.context, (current_index / canvas_size, current_index % (canvas_size)), self.drawn_path);
 
         let modifier: isize = if self.context.free & SE == SE {
             canvas_size + 1
