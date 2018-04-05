@@ -138,10 +138,13 @@ impl CodeWord {
         // 2. the number of codewords that each block would contain
 
         let (group_one_blocks, group_two_blocks) = self.get_block_count_for_groups();
-        let capacity = self.capacity - self.ecc_codeword_count;
-        let group_one_capacity = capacity / self.block_count;
+
+        let data_capacity = self.capacity - self.ecc_codeword_count;
+        let group_one_capacity = data_capacity / self.block_count;
+        let ecc_per_block = self.ecc_codeword_count / self.block_count;
+
         let group_two_capacity = if group_two_blocks > 0 {
-            (capacity - group_one_capacity) / group_two_blocks
+            (data_capacity - (group_one_capacity * group_one_blocks)) / group_two_blocks
         } else {
             0
         };
