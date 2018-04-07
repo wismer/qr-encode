@@ -4,11 +4,14 @@ A rust implementation of a QR generator. Uses the [Image](https://github.com/Pis
 
 ## Currently in development, as you can see by these wonderful images!
 
-### Whoops
+
+### When it works....
+![Hello?](https://github.com/wismer/qr-encode/blob/master/qr.png)
+### When it doesn't...
 ![Whoops](https://github.com/wismer/qr-encode/blob/master/qr-ex-5.png)
-### Oh man
+##### Oh man
 ![Oh man](https://github.com/wismer/qr-encode/blob/master/qr-ex-4.png)
-### What in the world?!
+##### What in the world?!
 ![What in the world?!](https://github.com/wismer/qr-encode/blob/master/qr-ex-4.png)
 
 # Install
