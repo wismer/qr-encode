@@ -55,7 +55,7 @@ pub fn ecc_format<T>(data: T, gen_poly: T, gen_mask: Option<T>) -> T where
     let (limit, mut format_str) = if gen_mask.is_some() {
         (5, data << 10)
     } else {
-        (18, data << 12)
+        (19, data << 12)
     };
 
     while format_str.leading_zeros() <= limit {
@@ -73,13 +73,12 @@ pub fn ecc_format<T>(data: T, gen_poly: T, gen_mask: Option<T>) -> T where
 
 fn interleave_blocks(blocks: &[Buffer], block_size: usize, ecc_block_size: usize) -> Vec<u8> {
     let mut data: Vec<u8> = vec![];
-    println!("block_size: {}, blocks: {}, ecc_block: {}", block_size, blocks.len(), ecc_block_size);
     for i in 0..block_size {
         for block in blocks {
             if let Some(cw) = block.data().get(i) {
                 data.push(*cw);
             } else {
-                // panic!("ADLKJSDLFKJD ECC {}", i);
+                println!("bleh: {}, block_size: {}", i, block_size);
             }
         }
     }
@@ -130,6 +129,7 @@ impl QRConfig {
         let bit_string = ecc_format::<u32>(self.version as u32, GEN_POLY_VERSION, None);
         let upper_right_indices = get_indices_for_dimensions(origin, 1, canvas_size - 3);
         let lower_left_indices = get_indices_for_dimensions(origin * canvas_size, canvas_size, (-canvas_size * 3) + 1);
+        // panic!("VERSION BINARY {:018b}", bit_string);
 
         for (bit_pos, i) in upper_right_indices.iter().enumerate() {
             let is_bit = ((bit_string >> bit_pos) & 1) > 0;
@@ -170,7 +170,6 @@ impl QRConfig {
         let data = (ec_level << 3) | pattern;
         let format_str = ecc_format::<u16>(data as u16, GEN_POLY_FORMAT, Some(ECC_FORMAT_MASK));
 
-        println!("result: {:b} ", format_str);
         let mut bit_position = 14;
 
         let mut x = 8;
@@ -244,11 +243,6 @@ impl QRConfig {
         let three = self.penalty_score_eval_three(body);
         let four = self.penalty_score_eval_four(body);
         let total = one + two + three + four;
-        // println!("1: {}", one);
-        // println!("2: {}", two);
-        // println!("3: {}", three);
-        // println!("4: {}", four);
-        // println!("total: {}", total);
 
         total
     }
@@ -477,7 +471,7 @@ impl QRConfig {
         {
             let (first_group_data, second_group_data) = data_codewords.split_at(mid_point);
             for data_block in first_group_data.chunks(group_one.codewords_per_block) {
-                let buffer =  encoder.encode(data_block);
+                let buffer = encoder.encode(data_block);
                 blocks.push(buffer);
             }
 
@@ -494,8 +488,8 @@ impl QRConfig {
                 group_two.codewords_per_block
             };
 
-            let mut first_group_interleaved = interleave_blocks(&blocks[..], codeword_max, ecc_per_block);
-            data_section.append(&mut first_group_interleaved);
+            let mut interleaved_data = interleave_blocks(&blocks[..], codeword_max, ecc_per_block);
+            data_section.append(&mut interleaved_data);
         }
 
         *data_codewords = data_section;
@@ -504,15 +498,32 @@ impl QRConfig {
 
     pub fn translate_data(&mut self) {
         let data_cw_length = self.codeword_properties.get_data_codeword_length();
-        let data_length = self.data.len() as u8;
-        // let content_length = self.get_content_length() as u16;
+        let data_length = self.data.len() as u16;
         let encoding = self.encoding;
         let copied_data = self.data.clone();
-
         {
             let codewords = &mut self.codewords;
             let mut first_byte = encoding << 4;
-            let mut second_byte = data_length as u8;
+            let mut second_byte: u8 = data_length as u8;
+
+            if self.version > 9 {
+                second_byte = (data_length >> 8) as u8;
+                codewords.push(first_byte | (second_byte >> 4));
+                first_byte = second_byte << 4;
+                second_byte = data_length as u8;
+            } else {
+                second_byte = data_length as u8;
+            }
+
+            /*
+                what am I doing...
+
+                1. if there's a 16 bit integer, it needs to be broken up|
+                2. the first half of the 16 bit integer is used first
+                3. cast it to an 8 bit integer
+                4. bitwise operation normally with the mode byte
+                
+            */
 
             let mut index = 0;
 
@@ -823,10 +834,6 @@ impl QRConfig {
             n += modifier;
             pts.push(n);
         }
-        println!("AlginmentPoints Stuff: bracket: {}, modifier: {}, pts : \n{:?}", version_bracket, modifier, pts);
-
-
-
 
         let pts: Vec<PlotPoint> = self.get_point_combinations(pts)
             .into_iter()
@@ -842,8 +849,6 @@ impl QRConfig {
                     CellType::None => true,
                     _ => false
                 };
-
-                // println!("{:?}, {}", pt, result);
 
                 result
             })
