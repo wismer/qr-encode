@@ -5,6 +5,7 @@ extern crate reed_solomon;
 
 use qr_encoder::qr::QR;
 use qr_encoder::config::{QRConfig};
+use qr_encoder::cell::{Cell, CellType, Color};
 use qr_encoder::util::{get_pixel_points, args};
 use qr_encoder::cursor::{Cursor, QRContext};
 
@@ -17,6 +18,57 @@ use self::image_lib::{
 };
 
 
+fn assign_bit_from_codeword(index: usize, body: &mut Vec<Cell>, dark: bool) -> isize {
+    let cell = body.get_mut(index).unwrap();
+    match cell.module_type {
+        CellType::None => {
+            if dark {
+                cell.value = 1;
+                cell.color = Color { r: 0, b: 0, g: 0 };
+            } else {
+                cell.value = 0;
+                cell.color = Color { r: 255, g: 255, b: 255 };
+            };
+            cell.module_type = CellType::Message;
+
+            -1
+        },
+        _ => 0
+    }
+}
+
+fn zig_zag_points(canvas_size: usize) -> Vec<usize> {
+    let mut col = canvas_size - 1;
+    let mut row = canvas_size - 1;
+    let mut indices = vec![];
+    let mut inc = -1;
+    while col != 0 {
+        if col == 6 {
+            col -= 1;
+            continue;
+        }
+        for c in 0..2 {
+            let index = (row * canvas_size) + col - c;
+            indices.push(index);
+        }
+        
+        if row == 0 && inc == -1 {
+            inc = 1;
+            col -= 2;
+        } else if row == canvas_size - 1 && inc == 1 {
+            inc = -1;
+            if col == 1 {
+                col -= 1;
+            } else {
+                col -= 2;
+            }
+        } else {
+            row = (row as isize + inc) as usize;            
+        }
+    }
+    
+    indices
+}
 
 fn create_qr_image(qr: &QR, config: &QRConfig) {
     let dimensions: u32 = (config.size) as u32;
@@ -76,14 +128,26 @@ fn main() {
     qr.setup(&config);
 
     {
-        let data = &config.codewords[..];
-        for byte in data.iter() {
-            qr.encode_chunk(&byte, 8, &config);
+        let mut bit_index = 7;
+        let mut codeword_index = 0usize;
+        let pathing = zig_zag_points(config.size);
+        let pathing_iter = &mut pathing.iter();
+        // codewords
+        while codeword_index < config.codewords.len() {
+            let cw = config.codewords[codeword_index];
+            let idx = pathing_iter.next().unwrap();
+            bit_index += assign_bit_from_codeword(*idx, &mut qr.body, (cw >> bit_index) & 1 == 1);
+
+            if bit_index == -1 {
+                bit_index = 7;
+                codeword_index += 1;
+            }
         }
 
-        let remainder_bits = &config.get_remainder_bit_length();
-        if *remainder_bits > 0 {
-            qr.encode_chunk(&0, *remainder_bits, &config);
+        let mut remainder_bits = config.get_remainder_bit_length();
+        while remainder_bits > 0 {
+            let i = pathing_iter.next().unwrap();
+            remainder_bits += assign_bit_from_codeword(*i, &mut qr.body, false);
         }
     }
 
