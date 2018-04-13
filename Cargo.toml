@@ -7,7 +7,7 @@ authors = ["Matt Long <matthewhl@gmail.com>"]
 name = "qr_encode"
 
 [[bin]]
-name = "qr-gen"
+name = "qr-encode"
 
 [dependencies]
 image = "*"
