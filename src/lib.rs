@@ -4,7 +4,6 @@ pub mod qr_encoder;
 
 use qr_encoder::util::{codeword_info, square_count};
 use qr_encoder::config::{ECLevel, QRConfig, EncodingMode, ecc_format};
-use qr_encoder::cursor::{QRContext, Cursor};
 use qr_encoder::cell::CellType;
 use qr_encoder::qr::QR;
 
@@ -32,19 +31,7 @@ fn qr_config_with_general_opts(version: usize, ec_level: ECLevel, encoding_mode:
 
 fn create_qr(config: &QRConfig) -> QR {
     QR {
-        body: config.create_body(),
-        cursor: Cursor {
-            context: QRContext {
-                free: 0,
-                algn: 0,
-                timing: 0,
-                off: 0,
-                msg: 0
-            },
-            drawn_path: vec![8; 0],
-            current_index: config.size * config.size - 1
-        }
-    }
+        body: config.create_body() }
 }
 
 #[cfg(test)]

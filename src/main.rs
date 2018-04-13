@@ -7,7 +7,6 @@ use qr_encoder::qr::QR;
 use qr_encoder::config::{QRConfig};
 use qr_encoder::cell::{Cell, CellType, Color};
 use qr_encoder::util::{get_pixel_points, args};
-use qr_encoder::cursor::{Cursor, QRContext};
 
 use std::fs::File;
 use std::path::Path;
@@ -100,21 +99,8 @@ fn create_qr_image(qr: &QR, config: &QRConfig) {
 
 fn main() {
     let mut config: QRConfig = args();
-    let drawn_path: Vec<usize> = vec![8; 0];
-
     let mut qr: QR = QR {
-        body: config.create_body(),
-        cursor: Cursor {
-            context: QRContext {
-                free: 0,
-                algn: 0,
-                timing: 0,
-                off: 0,
-                msg: 0
-            },
-            drawn_path: drawn_path,
-            current_index: config.size * config.size - 1
-        },
+        body: config.create_body()
     };
 
     config.verify_version(); // TODO
