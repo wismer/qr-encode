@@ -102,7 +102,7 @@ impl QRConfig {
         self.codeword_properties.ecc_codeword_count
     }
 
-    pub fn get_remainder_bit_length(&self) -> usize {
+    pub fn get_remainder_bit_length(&self) -> isize {
         match self.version {
             2...6 => 7,
             14...20 | 28...34 => 3,
