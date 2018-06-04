@@ -1,7 +1,9 @@
 [package]
 name = "qr-encode"
-version = "0.1.0"
+version = "0.1.4"
 authors = ["Matt Long <matthewhl@gmail.com>"]
+license = "MIT"
+description = "A simple CLI QR Code generator"
 
 [lib]
 name = "qr_encode"
@@ -10,6 +12,6 @@ name = "qr_encode"
 name = "qr-encode"
 
 [dependencies]
-image = "*"
-reed-solomon = "0.2.0"
-num = "*"
+image = "0.19.0"
+reed-solomon = { git = "https://github.com/wismer/reed-solomon-rs" }
+num = "0.1.42"

@@ -1,7 +1,7 @@
 extern crate reed_solomon;
 extern crate num;
 
-use std::ops::{Range, BitXorAssign};
+use std::ops::{BitXorAssign};
 use std::fmt::{Binary, Debug};
 use self::reed_solomon::{Encoder, Buffer};
 use self::num::PrimInt;
@@ -13,6 +13,7 @@ use qr_encoder::cell::{
     Color,
     PlotPoint
 };
+use qr_encoder::qr::QR;
 use qr_encoder::util::{CodeWord, get_indices_for_dimensions};
 
 
@@ -48,6 +49,60 @@ pub struct QRConfig {
 const ECC_FORMAT_MASK: u16 = 21522;
 const GEN_POLY_VERSION: u32 = 7973;
 const GEN_POLY_FORMAT: u16 = 1335;
+
+
+
+fn assign_bit_from_codeword(index: usize, body: &mut Vec<Cell>, dark: bool) -> isize {
+    let cell = body.get_mut(index).unwrap();
+    match cell.module_type {
+        CellType::None => {
+            if dark {
+                cell.value = 1;
+                cell.color = Color { r: 0, b: 0, g: 0 };
+            } else {
+                cell.value = 0;
+                cell.color = Color { r: 255, g: 255, b: 255 };
+            };
+            cell.module_type = CellType::Message;
+
+            -1
+        },
+        _ => 0
+    }
+}
+
+fn zig_zag_points(canvas_size: usize) -> Vec<usize> {
+    let mut col = canvas_size - 1;
+    let mut row = canvas_size - 1;
+    let mut indices = vec![];
+    let mut inc = -1;
+    while col != 0 {
+        if col == 6 {
+            col -= 1;
+            continue;
+        }
+        for c in 0..2 {
+            let index = (row * canvas_size) + col - c;
+            indices.push(index);
+        }
+        
+        if row == 0 && inc == -1 {
+            inc = 1;
+            col -= 2;
+        } else if row == canvas_size - 1 && inc == 1 {
+            inc = -1;
+            if col == 1 {
+                col -= 1;
+            } else {
+                col -= 2;
+            }
+        } else {
+            row = (row as isize + inc) as usize;            
+        }
+    }
+    
+    indices
+}
 
 
 pub fn ecc_format<T>(data: T, gen_poly: T, gen_mask: Option<T>) -> T where 
@@ -98,6 +153,68 @@ fn interleave_blocks(blocks: &[Buffer], block_size: usize, ecc_block_size: usize
 
 
 impl QRConfig {
+    pub fn gen_qr_code(&mut self) -> QR {
+        self.translate_data();
+        self.encode_error_correction_codewords();
+        
+        let mut canvas: QR = QR {
+            body: self.create_body()
+        };
+        
+        canvas.setup(&self);
+        
+        self.process_data(&mut canvas);
+        self.post_process_data(&mut canvas);
+        
+        canvas
+    }
+    
+    fn process_data(&self, canvas: &mut QR) {
+        let mut bit_index = 7;
+        let mut codeword_index = 0usize;
+        let pathing = zig_zag_points(self.size);
+        let pathing_iter = &mut pathing.iter();
+        // codewords
+        while codeword_index < self.codewords.len() {
+            let cw = self.codewords[codeword_index];
+            let idx = pathing_iter.next().unwrap();
+            bit_index += assign_bit_from_codeword(*idx, &mut canvas.body, (cw >> bit_index) & 1 == 1);
+
+            if bit_index == -1 {
+                bit_index = 7;
+                codeword_index += 1;
+            }
+        }
+
+        let mut remainder_bits = self.get_remainder_bit_length();
+        while remainder_bits > 0 {
+            let i = pathing_iter.next().unwrap();
+            remainder_bits += assign_bit_from_codeword(*i, &mut canvas.body, false);
+        }
+    }
+    
+    fn post_process_data(&self, canvas: &mut QR) {
+        let body = &mut canvas.body;
+        let mut best = 0;
+        let mut best_pattern = 0;
+        for pattern in 0..7 {
+            let mut copy = &mut body.clone();
+            self.apply_mask_pattern(&mut copy, pattern);
+            let score = self.eval_penalty_scores(copy);
+            if best == 0 || score < best {
+                best = score;
+                best_pattern = pattern;
+            }
+        }
+
+        self.apply_mask_pattern(body, best_pattern);
+        self.encode_format_areas(body, best_pattern as u8);
+        
+        if self.version >= 7 {
+            self.apply_version_information(body);
+        }
+    }
+    
     pub fn get_ecc_length(&self) -> usize {
         self.codeword_properties.ecc_codeword_count
     }

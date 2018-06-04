@@ -77,7 +77,7 @@ mod tests {
         let mut qr_opts = qr_config_with_general_opts(7, ECLevel::Low, EncodingMode::Byte, message);
         let mut qr = create_qr(&qr_opts);
         qr.setup(&mut qr_opts);
-        qr.encode_data(&qr_opts);
+        // qr.encode_data(&qr_opts);
         qr_opts.encode_format_areas(&mut qr.body, 4u8);
 
         // assert_eq!(4, qr_opts.mask);
