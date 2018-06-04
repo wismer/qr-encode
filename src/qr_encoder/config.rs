@@ -1,10 +1,8 @@
 extern crate reed_solomon;
-extern crate num;
 
 use std::ops::{BitXorAssign};
 use std::fmt::{Binary, Debug};
 use self::reed_solomon::{Encoder, Buffer};
-use self::num::PrimInt;
 
 use qr_encoder::cell::{
     Cell,
@@ -104,24 +102,26 @@ fn zig_zag_points(canvas_size: usize) -> Vec<usize> {
     indices
 }
 
+pub fn ecc_format_u32(data: u32, gen_poly: u32) -> u32 {
+    let (limit, mut format_str) = (19, data << 12);
+    
+    while format_str.leading_zeros() <= limit {
+        let diff = gen_poly.leading_zeros() - format_str.leading_zeros();
+        format_str ^= gen_poly << diff as usize;
+    }
 
-pub fn ecc_format<T>(data: T, gen_poly: T, gen_mask: Option<T>) -> T where 
-    T: PrimInt + Binary + Debug + BitXorAssign<T> {
-    let (limit, mut format_str) = if gen_mask.is_some() {
-        (5, data << 10)
-    } else {
-        (19, data << 12)
-    };
+    (data << 12) | format_str
+}
+
+pub fn ecc_format_u16(data: u16, gen_poly: u16, gen_mask: u16) -> u16 {
+    let (limit, mut format_str) = (5, data << 10);
 
     while format_str.leading_zeros() <= limit {
         let diff = gen_poly.leading_zeros() - format_str.leading_zeros();
         format_str ^= gen_poly << diff as usize;
     }
 
-    match gen_mask {
-        Some(mask) => ((data << 10) | format_str) ^ mask,
-        None => (data << 12) | format_str
-    }
+    ((data << 10) | format_str) ^ gen_mask
 }
 
 // NOTE FOR MATT FOR TOMORROW ABOUT ISSUE WITH VERSIONS 4, 5 and 6 NOT WORKING -> CHECK THE ERROR ENCODING PROCESS FOR GROUPS THE ISSUE MIGHT BE THERE!
@@ -243,7 +243,7 @@ impl QRConfig {
     pub fn apply_version_information(&self, body: &mut Vec<Cell>) {
         let canvas_size = self.size as isize;
         let origin = (canvas_size - 12) as isize;
-        let bit_string = ecc_format::<u32>(self.version as u32, GEN_POLY_VERSION, None);
+        let bit_string = ecc_format_u32(self.version as u32, GEN_POLY_VERSION);
         let upper_right_indices = get_indices_for_dimensions(origin, 1, canvas_size - 3);
         let lower_left_indices = get_indices_for_dimensions(origin * canvas_size, canvas_size, (-canvas_size * 3) + 1);
         // panic!("VERSION BINARY {:018b}", bit_string);
@@ -285,7 +285,7 @@ impl QRConfig {
         };
 
         let data = (ec_level << 3) | pattern;
-        let format_str = ecc_format::<u16>(data as u16, GEN_POLY_FORMAT, Some(ECC_FORMAT_MASK));
+        let format_str = ecc_format_u16(data as u16, GEN_POLY_FORMAT, ECC_FORMAT_MASK);
 
         let mut bit_position = 14;
 
