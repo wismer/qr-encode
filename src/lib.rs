@@ -1,3 +1,5 @@
+pub mod qr_encoder;
+
 // #![allow(dead_code)]
 
 // pub mod qr_encoder;
