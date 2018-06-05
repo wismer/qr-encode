@@ -55,7 +55,7 @@ fn main() {
     // parse the command line arguments
     let mut config: QRConfig = args();
     // kick off the encoding process
-    let canvas = config.gen_qr_code();
+    let (canvas, tracker) = config.gen_qr_code();
     // generate the image from the encoded data
     create_qr_image(&canvas, &config);
 }

@@ -1,6 +1,6 @@
 [package]
 name = "qr-encode"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Matt Long <matthewhl@gmail.com>"]
 license = "MIT"
 description = "A simple CLI QR Code generator"

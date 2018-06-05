@@ -151,33 +151,41 @@ fn interleave_blocks(blocks: &[Buffer], block_size: usize, ecc_block_size: usize
     data
 }
 
+pub struct CellTrack(pub Vec<usize>, pub Vec<usize>, pub Vec<usize>);
 
-impl QRConfig {
-    pub fn gen_qr_code(&mut self) -> QR {
+impl QRConfig {    
+    pub fn gen_qr_code(&mut self) -> (QR, CellTrack) {
         self.translate_data();
         self.encode_error_correction_codewords();
-        
+
         let mut canvas: QR = QR {
             body: self.create_body()
         };
         
         canvas.setup(&self);
         
-        self.process_data(&mut canvas);
+        let tracker = self.process_data(&mut canvas);
         self.post_process_data(&mut canvas);
         
-        canvas
+        (canvas, tracker)
     }
-    
-    fn process_data(&self, canvas: &mut QR) {
+
+    fn process_data(&self, canvas: &mut QR) -> CellTrack {
         let mut bit_index = 7;
         let mut codeword_index = 0usize;
+        let mut bit_order = vec![];
+        let mut cw_order = vec![];
+        let mut point_order = vec![];
         let pathing = zig_zag_points(self.size);
         let pathing_iter = &mut pathing.iter();
+        
         // codewords
         while codeword_index < self.codewords.len() {
             let cw = self.codewords[codeword_index];
+            bit_order.push(bit_index as usize);
+            cw_order.push(codeword_index);
             let idx = pathing_iter.next().unwrap();
+            point_order.push(*idx);
             bit_index += assign_bit_from_codeword(*idx, &mut canvas.body, (cw >> bit_index) & 1 == 1);
 
             if bit_index == -1 {
@@ -191,6 +199,8 @@ impl QRConfig {
             let i = pathing_iter.next().unwrap();
             remainder_bits += assign_bit_from_codeword(*i, &mut canvas.body, false);
         }
+
+        CellTrack(bit_order, cw_order, point_order)
     }
     
     fn post_process_data(&self, canvas: &mut QR) {
