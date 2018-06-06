@@ -151,7 +151,7 @@ fn interleave_blocks(blocks: &[Buffer], block_size: usize, ecc_block_size: usize
     data
 }
 
-pub struct CellTrack(pub Vec<u8>, pub Vec<u8>, pub Vec<u8>);
+pub struct CellTrack(pub Vec<usize>, pub Vec<usize>, pub Vec<usize>);
 
 impl QRConfig {    
     pub fn gen_qr_code(&mut self) -> (QR, CellTrack) {
@@ -182,10 +182,10 @@ impl QRConfig {
         // codewords
         while codeword_index < self.codewords.len() {
             let cw = self.codewords[codeword_index];
-            bit_order.push(bit_index as u8);
-            cw_order.push(codeword_index as u8);
+            bit_order.push(bit_index as usize);
+            cw_order.push(codeword_index as usize);
             let idx = pathing_iter.next().unwrap();
-            point_order.push(*idx as u8);
+            point_order.push(*idx as usize);
             bit_index += assign_bit_from_codeword(*idx, &mut canvas.body, (cw >> bit_index) & 1 == 1);
 
             if bit_index == -1 {
